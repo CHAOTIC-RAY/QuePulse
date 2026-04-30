@@ -1,0 +1,47 @@
+{
+  "entities": {
+    "Queue": {
+      "title": "Queue",
+      "description": "Information about a specific department's queue.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "prefix": { "type": "string" },
+        "currentNumber": { "type": "integer" },
+        "lastUpdated": { "type": "string", "format": "date-time" },
+        "isActive": { "type": "boolean" },
+        "counterInfo": { "type": "string" }
+      },
+      "required": ["name", "prefix", "currentNumber", "lastUpdated"]
+    },
+    "PatientToken": {
+      "title": "Patient Token",
+      "description": "Specific token issued to a patient.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "queueId": { "type": "string" },
+        "tokenDisplay": { "type": "string" },
+        "number": { "type": "integer" },
+        "status": {
+          "type": "string",
+          "enum": ["waiting", "calling", "completed", "skipped"]
+        },
+        "issuedAt": { "type": "string", "format": "date-time" },
+        "calledAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["queueId", "tokenDisplay", "number", "status", "issuedAt"]
+    }
+  },
+  "firestore": {
+    "/queues/{queueId}": {
+      "schema": "Queue",
+      "description": "Collection of active queues for different departments."
+    },
+    "/queues/{queueId}/tokens/{tokenId}": {
+      "schema": "PatientToken",
+      "description": "History and current status of tokens for a specific queue."
+    }
+  }
+}

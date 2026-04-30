@@ -1,0 +1,95 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    function isEmailVerified() { return request.auth.token.email_verified == true; }
+    function isStaff() { 
+      return isSignedIn() && 
+             isEmailVerified() && 
+             exists(/databases/$(database)/documents/staff/$(request.auth.uid)); 
+    }
+    
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+    
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    // --- Validation Blueprints ---
+    
+    function isValidQueue(data) {
+      return data.keys().hasAll(['name', 'prefix', 'currentNumber', 'lastUpdated', 'isActive', 'counterInfo']) &&
+             data.keys().size() == 6 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.prefix is string && data.prefix.size() > 0 && data.prefix.size() <= 5 &&
+             data.currentNumber is int && data.currentNumber >= 0 &&
+             data.lastUpdated is timestamp &&
+             data.isActive is bool &&
+             data.counterInfo is string && data.counterInfo.size() <= 200;
+    }
+    
+    function isValidToken(data) {
+      return data.keys().hasAll(['queueId', 'tokenDisplay', 'number', 'status', 'issuedAt']) &&
+             data.keys().size() >= 5 &&
+             data.queueId is string && isValidId(data.queueId) &&
+             data.tokenDisplay is string && data.tokenDisplay.size() <= 10 &&
+             data.number is int && data.number >= 0 &&
+             data.status in ['waiting', 'calling', 'completed', 'skipped'] &&
+             data.issuedAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+
+    match /queues/{queueId} {
+      allow get: if true; // Public can see individual queue info
+      allow list: if true; // Public can see the live board
+      
+      allow create: if isStaff() && isValidQueue(incoming()) && isValidId(queueId);
+      
+      allow update: if isStaff() && (
+        // Action: Call Next / Increment
+        (isValidQueue(incoming()) && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['currentNumber', 'lastUpdated', 'counterInfo'])) ||
+        // Action: Toggle Status
+        (isValidQueue(incoming()) &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['isActive', 'lastUpdated']))
+      );
+      
+      allow delete: if isStaff();
+      
+      // Tokens subcollection
+      match /tokens/{tokenId} {
+        allow get: if true; // Patients check their own, public checks status
+        
+        // Secure List Query: Must specify queueId
+        allow list: if isSignedIn();
+        
+        allow create: if isSignedIn() && 
+                         isValidToken(incoming()) && 
+                         isValidId(tokenId) &&
+                         incoming().issuedAt == request.time &&
+                         exists(/databases/$(database)/documents/queues/$(queueId));
+        
+        allow update: if (isStaff() || (isSignedIn() && existing().patientUid == request.auth.uid)) && (
+          // Action: Call/Complete (Staff only)
+          (isStaff() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'calledAt', 'updatedAt'])) ||
+          // Action: Cancel (Owner only)
+          (isSignedIn() && incoming().diff(existing()).affectedKeys().hasOnly(['status']) && incoming().status == 'skipped')
+        );
+      }
+    }
+
+    // Admin/Staff whitelist
+    match /staff/{staffId} {
+      allow get: if isSignedIn();
+      allow write: if false; // Managed via Firebase Console or special script
+    }
+  }
+}

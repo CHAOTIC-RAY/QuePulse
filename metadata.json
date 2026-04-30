@@ -1,0 +1,7 @@
+{
+  "name": "Queue.mv",
+  "description": "Live healthcare tracking for Maldives. Monitor HMH, ADK, and Vital Care queue tokens in real-time.",
+  "requestFramePermissions": [
+    "notifications"
+  ]
+}
