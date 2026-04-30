@@ -47,7 +47,7 @@ export const queueService = {
   getExternalVitalCareQueues: async (): Promise<Queue[]> => {
     try {
       const targetUrl = 'https://token.vitalcare.com.mv/index.aspx/GetTokenData';
-      const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${targetUrl}`;
+      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
       
       let response = await fetch('/api/vitalcare/tokens');
       
