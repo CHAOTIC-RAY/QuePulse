@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Hospital, Activity, Building2, MapPin, ChevronRight, Info, AlertCircle } from 'lucide-react';
+import { Hospital, Activity, Building2, MapPin, ChevronRight, Info, AlertCircle, Phone } from 'lucide-react';
 import { SiteSource } from '../types';
+import { DirectoryPanel } from './DirectoryPanel';
 
 interface LandingPageProps {
   onSelectSite: (site: SiteSource) => void;
 }
+
 
 const SITES = [
   { 
@@ -38,28 +40,47 @@ const SITES = [
 ];
 
 export function LandingPage({ onSelectSite }: LandingPageProps) {
+  const [isDirectoryOpen, setIsDirectoryOpen] = useState(false);
+
   return (
-    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <motion.div 
+      initial="hidden"
+      animate="show"
+      variants={{
+        hidden: { opacity: 0 },
+        show: { opacity: 1, transition: { staggerChildren: 0.1 } }
+      }}
+      className="space-y-10 relative"
+    >
+      <DirectoryPanel isOpen={isDirectoryOpen} onClose={() => setIsDirectoryOpen(false)} />
       {/* Header Info */}
-      <div className="space-y-2">
+      <motion.div 
+        variants={{
+          hidden: { opacity: 0, y: 20, scale: 0.95 },
+          show: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", bounce: 0.5 } }
+        }}
+        className="space-y-2"
+      >
         <h1 className="text-4xl md:text-6xl font-black tracking-tighter uppercase leading-none">
           Medical <br /> <span className="text-blue-600">Dashboard.</span>
         </h1>
         <p className="text-slate-500 font-medium text-sm md:text-lg max-w-sm">
           Select a facility to track live queue status and tokens.
         </p>
-      </div>
+      </motion.div>
 
       {/* Sites List - Mobile Hub Feel */}
       <div className="space-y-4">
         {SITES.map((site, index) => (
           <motion.button
             key={site.id}
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.1 }}
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: "spring", bounce: 0.5, delay: index * 0.1 }}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             onClick={() => onSelectSite(site.id)}
-            className="w-full flex items-center gap-5 p-5 rounded-[2rem] bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 transition-all hover:bg-slate-100 dark:hover:bg-white/10 active:scale-[0.98] group"
+            className="w-full flex items-center gap-5 p-5 rounded-[2rem] bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 transition-all hover:bg-slate-100 dark:hover:bg-white/10 transform-gpu group"
           >
             <div className={`w-14 h-14 ${site.color} rounded-2xl flex items-center justify-center text-white shadow-xl shadow-opacity-20 flex-shrink-0`}>
                <site.icon className="w-8 h-8" />
@@ -95,18 +116,34 @@ export function LandingPage({ onSelectSite }: LandingPageProps) {
       </div>
 
       {/* Emergency Quick Action */}
-      <div className="grid grid-cols-2 gap-4">
-          <div className="p-5 rounded-[2rem] bg-red-600/5 border border-red-600/10 flex flex-col items-center justify-center text-center group active:scale-95 transition-transform cursor-pointer">
+      <motion.div 
+        variants={{
+          hidden: { opacity: 0, y: 20, scale: 0.95 },
+          show: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", bounce: 0.5 } }
+        }}
+        className="grid grid-cols-2 gap-4 pb-8"
+      >
+          <motion.a 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            href="tel:119" 
+            className="p-5 rounded-[2rem] bg-red-600/5 border border-red-600/10 flex flex-col items-center justify-center text-center group cursor-pointer transform-gpu"
+          >
               <AlertCircle className="w-6 h-6 text-red-500 mb-2" />
-              <span className="text-[8px] font-black uppercase tracking-widest text-red-500">Emergency</span>
-              <span className="text-xl font-black tracking-tighter text-red-600">1440</span>
-          </div>
-          <div className="p-5 rounded-[2rem] bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 flex flex-col items-center justify-center text-center active:scale-95 transition-transform cursor-pointer">
-              <Activity className="w-6 h-6 text-slate-400 mb-2" />
-              <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Directory</span>
-              <span className="text-xl font-black tracking-tighter uppercase leading-none">Find Dr</span>
-          </div>
-      </div>
-    </div>
+              <span className="text-[8px] font-black uppercase tracking-widest text-red-500">Police</span>
+              <span className="text-xl font-black tracking-tighter text-red-600">119</span>
+          </motion.a>
+          <motion.div 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsDirectoryOpen(true)} 
+            className="p-5 rounded-[2rem] bg-indigo-50 dark:bg-white/5 border border-indigo-200 dark:border-white/5 flex flex-col items-center justify-center text-center cursor-pointer group hover:bg-indigo-100 hover:border-indigo-300 transform-gpu"
+          >
+              <Phone className="w-6 h-6 text-indigo-500 mb-2 group-hover:scale-110 transition-transform" />
+              <span className="text-[8px] font-black uppercase tracking-widest text-indigo-500">Directory</span>
+              <span className="text-xl font-black tracking-tighter uppercase leading-none text-indigo-600">Find Dr</span>
+          </motion.div>
+      </motion.div>
+    </motion.div>
   );
 }

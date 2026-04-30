@@ -197,7 +197,15 @@ export function QueueBoard({ source, tracking, onUpdateTracking }: QueueBoardPro
       </div>
 
       {/* Categorized Counter List */}
-      <div className="space-y-10">
+      <motion.div 
+        initial="hidden"
+        animate="show"
+        variants={{
+          hidden: { opacity: 0 },
+          show: { opacity: 1, transition: { staggerChildren: 0.05 } }
+        }}
+        className="space-y-10"
+      >
         {categories.map(cat => (
           <div key={cat} className="space-y-4">
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-3">
@@ -211,13 +219,19 @@ export function QueueBoard({ source, tracking, onUpdateTracking }: QueueBoardPro
                 return (
                   <motion.div
                     layout
+                    variants={{
+                      hidden: { opacity: 0, scale: 0.9, y: 20 },
+                      show: { opacity: 1, scale: 1, y: 0, transition: { type: "spring", bounce: 0.4 } }
+                    }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     key={queue.id}
                     onClick={() => {
                       setSelectedQueue(queue);
                       setSetupTrackMode(false);
                       setSetupToken('');
                     }}
-                    className={`flex items-center justify-between p-4 rounded-3xl cursor-pointer transition-all active:scale-[0.98] ${
+                    className={`flex items-center justify-between p-4 rounded-3xl cursor-pointer transform-gpu ${
                       isTracked 
                       ? 'bg-blue-600 text-white shadow-xl shadow-blue-600/30 ring-4 ring-blue-500/10' 
                       : 'bg-white dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 hover:border-blue-500/50'
@@ -247,7 +261,7 @@ export function QueueBoard({ source, tracking, onUpdateTracking }: QueueBoardPro
             </div>
           </div>
         ))}
-      </div>
+      </motion.div>
 
       {/* Active Tracking Mini-Overlay (Mobile focus) */}
       <AnimatePresence>
