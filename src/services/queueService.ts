@@ -8,9 +8,9 @@ import { Queue } from '../types';
 export const queueService = {
   getExternalHMHQueues: async (): Promise<Queue[]> => {
     try {
-      // Use corsproxy.io to bypass CORS from the browser
+      // Use cors.eu.org proxy because it forwards Authorization headers for HMH seamlessly
       const targetUrl = 'https://api.hmh.gov.mv/api/queue/0';
-      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+      const proxyUrl = `https://cors.eu.org/${targetUrl}`;
       const token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiI5IiwianRpIjoiYzUwMDUwZWM2ZTI0OWRiMDUwZjhjOTU3YmU2YWJjMTJhMDQ5OWUwYjJiYzEyYzkyOTNlZGIxNWE1MmZkMTY4ZWExYmE4N2E0NjNlZTQxYmQiLCJpYXQiOjE3NjgyMzAzMTkuNDI1MTA4LCJuYmYiOjE3NjgyMzAzMTkuNDI1MTEzLCJleHAiOjE3OTk3NjYzMTkuNDA5Miwic3ViIjoiIiwic2NvcGVzIjpbXX0.rvD_FtiWl4a9QWdempukZMq36Q_28tDqUkN8Rj2W-Nxzu_9pv37QWrZXhgtpYyd29yE-ij1lE6QEOMqUK0Yu7M9lYwCr6x-MK5ieRCop6dIGlKDla3PrE11mpFvrv768dcmfmAP449eTVr_lvqvWoRHiKMSCr_k9VnvocrKHCbpK-YtycpUpZ7n6aIynE8JIIIa7iYlXMAiRy3bs49VplHM8kmwk0hSZhgYslRo9fFk24UjoSbTLJeaNXAfmzEtCsTezQXWByrI9Om3VIvQeO1gJHya7kT2SSQJ-VfZyVT5IPtrgJL6HOp_qTgHt8Ozlvz-F4nyaf9TQQNsYy3TqKynK_b-lksdDbedQQLTo534v4PS1ZVpK2dAb7Zye-1TWfjgUqXgHahN_sAFarnac2mHGo7c1G8h7aLap5OXAnLLrukqLytLR0eg4Mg49rPrz7FdzN8OT8b5_Wl2nW_-J-ETcCzYar0Z_-w-fmWYjZJnx-C6Gm8w1P2V60cj42fG4YG_bRyLkw2MXy24mfO_64eM_0uM0fPbePIhiio7h47T0xRI19fYwZYDPayfyjA-EcdyiX9JHwrC5pRn8WME8uvIqGnUH99LM2MpJyy2PSOBWhJKsKV8HYVCtvCjFDCnFo1-SY4ppBbHroJXzcIRqndti7xjVylc6uUL-5RLNAm4';
       
       let response = await fetch('/api/hmh/queues');
@@ -47,7 +47,7 @@ export const queueService = {
   getExternalVitalCareQueues: async (): Promise<Queue[]> => {
     try {
       const targetUrl = 'https://token.vitalcare.com.mv/index.aspx/GetTokenData';
-      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+      const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${targetUrl}`;
       
       let response = await fetch('/api/vitalcare/tokens');
       
@@ -84,8 +84,8 @@ export const queueService = {
       let response = await fetch('/api/adk/queues');
       
       if (!response.ok || response.headers.get('content-type')?.includes('text/html')) {
-        const proxyUrlService = `https://corsproxy.io/?${encodeURIComponent('https://www.adkhospital.mv/api/token-queues')}`;
-        const proxyUrlRoom = `https://corsproxy.io/?${encodeURIComponent('https://www.adkhospital.mv/api/token-rooms')}`;
+        const proxyUrlService = `https://api.codetabs.com/v1/proxy?quest=https://www.adkhospital.mv/api/token-queues`;
+        const proxyUrlRoom = `https://api.codetabs.com/v1/proxy?quest=https://www.adkhospital.mv/api/token-rooms`;
 
         const [serviceResp, roomResp] = await Promise.all([
           fetch(proxyUrlService),
