@@ -252,7 +252,7 @@ export function QueueBoard({ source, tracking, onUpdateTracking }: QueueBoardPro
                     }`}
                   >
                     <div className="flex items-center gap-4">
-                       <div className={`min-w-[4rem] px-3 h-12 rounded-2xl flex items-center justify-center font-black text-xl flex-shrink-0 ${
+                       <div className={`min-w-[4.5rem] px-3 h-12 rounded-2xl flex items-center justify-center font-black text-xl flex-shrink-0 ${
                          isTracked ? 'bg-white/20' : 'bg-slate-100 dark:bg-white/5 text-blue-600'
                        }`}>
                          <motion.span
@@ -295,7 +295,7 @@ export function QueueBoard({ source, tracking, onUpdateTracking }: QueueBoardPro
           >
              <div className="bg-blue-600 text-white p-5 rounded-3xl shadow-2xl flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                   <div className="min-w-[4rem] px-2 h-14 bg-white/10 rounded-2xl flex flex-col items-center justify-center border border-white/20">
+                   <div className="min-w-[4.5rem] px-2 h-14 bg-white/10 rounded-2xl flex flex-col items-center justify-center border border-white/20">
                       <span className="text-[10px] font-black uppercase opacity-60">You</span>
                       <span className="text-xl font-black">{tracking.myToken}</span>
                    </div>

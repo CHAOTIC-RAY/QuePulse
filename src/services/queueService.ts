@@ -47,29 +47,35 @@ export const queueService = {
   getExternalVitalCareQueues: async (): Promise<Queue[]> => {
     try {
       const targetUrl = 'https://token.vitalcare.com.mv/index.aspx/GetTokenData';
-      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+      // cors.eu.org is more likely to work than others if it supports the POST pass-through
+      const proxyUrl = `https://cors.eu.org/${targetUrl}`;
       
       let response = await fetch('/api/vitalcare/tokens');
       
       if (!response.ok || response.headers.get('content-type')?.includes('text/html')) {
-        response = await fetch(proxyUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8'
-          },
-          body: JSON.stringify({})
-        });
-        const json = await response.json();
-        const rawData = json.d;
-        if (!rawData || !Array.isArray(rawData)) return [];
-        return rawData.map((item: any, i: number) => ({
-          id: `vc-${i}`,
-          name: item.DocName || 'Consultation',
-          prefix: '',
-          currentNumber: item.TokenNumber === 0 ? 'CLOSED' : item.TokenNumber.toString(),
-          counterInfo: `Room ${item.RoomNumber} (${item.RoomFloor})`,
-          lastUpdated: new Date()
-        }));
+        try {
+          response = await fetch(proxyUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8'
+            },
+            body: JSON.stringify({})
+          });
+          const json = await response.json();
+          const rawData = json.d;
+          if (!rawData || !Array.isArray(rawData)) return [];
+          return rawData.map((item: any, i: number) => ({
+            id: `vc-${i}`,
+            name: item.DocName || 'Consultation',
+            prefix: '',
+            currentNumber: item.TokenNumber === 0 ? 'CLOSED' : item.TokenNumber.toString(),
+            counterInfo: `Room ${item.RoomNumber} (${item.RoomFloor})`,
+            lastUpdated: new Date()
+          }));
+        } catch (proxyErr) {
+          console.error('Vital Care Proxy Fallback failed:', proxyErr);
+          return [];
+        }
       } else {
         return await response.json();
       }

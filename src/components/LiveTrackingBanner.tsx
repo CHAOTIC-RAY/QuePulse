@@ -134,7 +134,7 @@ export function LiveTrackingBanner({ tracking }: LiveTrackingBannerProps) {
       
       <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="flex items-center gap-5">
-           <div className="min-w-[4rem] px-3 h-16 bg-white/20 rounded-2xl flex flex-col items-center justify-center border border-white/20 flex-shrink-0 shadow-inner">
+           <div className="min-w-[4.5rem] px-3 h-16 bg-white/20 rounded-2xl flex flex-col items-center justify-center border border-white/20 flex-shrink-0 shadow-inner">
              <span className="text-[10px] font-black uppercase tracking-widest opacity-70">Token</span>
              <span className="text-2xl font-black">{tracking.myToken}</span>
            </div>
