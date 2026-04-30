@@ -39,16 +39,30 @@ export function QueueBoard({ source, tracking, onUpdateTracking }: QueueBoardPro
         setHistoryMap(prev => {
           const newMap = { ...prev };
           let changed = false;
+          
+          let timesMap: Record<string, {token: string, time: number}[]> = {};
+          try {
+            const savedTimes = localStorage.getItem('mv_queue_history_times');
+            if (savedTimes) timesMap = JSON.parse(savedTimes);
+          } catch(e) {}
+
           data.forEach(q => {
             const currentHistory = newMap[q.id] || [];
             if (currentHistory[0] !== q.currentNumber) {
               const updated = [q.currentNumber, ...currentHistory].slice(0, 5);
               newMap[q.id] = updated;
+              
+              // update times history
+              const tHist = timesMap[q.id] || [];
+              const tUpdate = [{ token: q.currentNumber, time: Date.now() }, ...tHist].slice(0, 10);
+              timesMap[q.id] = tUpdate;
+              
               changed = true;
             }
           });
           if (changed) {
             localStorage.setItem('mv_queue_history', JSON.stringify(newMap));
+            localStorage.setItem('mv_queue_history_times', JSON.stringify(timesMap));
           }
           return newMap;
         });
@@ -238,10 +252,17 @@ export function QueueBoard({ source, tracking, onUpdateTracking }: QueueBoardPro
                     }`}
                   >
                     <div className="flex items-center gap-4">
-                       <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl ${
+                       <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl flex-shrink-0 overflow-hidden ${
                          isTracked ? 'bg-white/20' : 'bg-slate-100 dark:bg-white/5 text-blue-600'
                        }`}>
-                         {queue.currentNumber}
+                         <motion.span
+                           key={queue.currentNumber}
+                           initial={{ scale: 1.5, opacity: 0.5, filter: 'brightness(2)' }}
+                           animate={{ scale: 1, opacity: 1, filter: 'brightness(1)' }}
+                           transition={{ duration: 0.6, type: 'spring', bounce: 0.6 }}
+                         >
+                           {queue.currentNumber}
+                         </motion.span>
                        </div>
                        <div>
                           <h4 className="text-sm font-black uppercase tracking-tighter leading-none mb-1 line-clamp-1">{queue.name}</h4>
@@ -283,7 +304,17 @@ export function QueueBoard({ source, tracking, onUpdateTracking }: QueueBoardPro
                       <p className="font-black uppercase tracking-tighter text-lg leading-none">{activeTrackedQueue.name}</p>
                       <div className="flex items-center gap-2 mt-1">
                          <Clock className="w-3 h-3 opacity-60" />
-                         <span className="text-[10px] font-bold">Serving {activeTrackedQueue.currentNumber}</span>
+                         <span className="text-[10px] font-bold">
+                           Serving <motion.span 
+                             key={activeTrackedQueue.currentNumber}
+                             initial={{ scale: 1.3, color: '#10b981' }}
+                             animate={{ scale: 1, color: '#ffffff' }}
+                             transition={{ duration: 0.6, type: 'spring', bounce: 0.6 }}
+                             className="inline-block"
+                           >
+                             {activeTrackedQueue.currentNumber}
+                           </motion.span>
+                         </span>
                       </div>
                    </div>
                 </div>
@@ -334,7 +365,15 @@ export function QueueBoard({ source, tracking, onUpdateTracking }: QueueBoardPro
               <div className="grid grid-cols-2 gap-4 mb-10">
                  <div className="p-6 rounded-[2rem] bg-blue-600 text-white flex flex-col items-center justify-center text-center">
                     <span className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-2">Currently Serving</span>
-                    <span className="text-5xl font-black tracking-tighter">{activeSelectedQueue.currentNumber}</span>
+                    <motion.span 
+                      key={activeSelectedQueue.currentNumber}
+                      initial={{ scale: 1.3, opacity: 0.5, filter: 'brightness(2)' }}
+                      animate={{ scale: 1, opacity: 1, filter: 'brightness(1)' }}
+                      transition={{ duration: 0.6, type: 'spring', bounce: 0.6 }}
+                      className="text-5xl font-black tracking-tighter"
+                    >
+                      {activeSelectedQueue.currentNumber}
+                    </motion.span>
                  </div>
                  <div className="p-6 rounded-[2rem] bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex flex-col items-center justify-center text-center">
                     <History className="w-5 h-5 text-slate-400 mb-2" />

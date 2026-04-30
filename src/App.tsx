@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { LandingPage } from './components/LandingPage';
 import { QueueBoard } from './components/QueueBoard';
 import { TrackingHub } from './components/TrackingHub';
+import { LiveTrackingBanner } from './components/LiveTrackingBanner';
 import { SiteSource, UserTracking } from './types';
 import { Moon, Sun, Bell, Home, MoreHorizontal, Activity } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -84,6 +85,7 @@ export default function App() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
             >
+              {tracking && <LiveTrackingBanner tracking={tracking} />}
               <LandingPage onSelectSite={setSource} />
             </motion.div>
           ) : (
