@@ -46,7 +46,12 @@ export default {
     }
     
     // Serve static assets
-    return env.ASSETS.fetch(request);
+    try {
+      return await env.ASSETS.fetch(request);
+    } catch (e) {
+      // If ASSETS is not available, return 404
+      return new Response('Not Found', { status: 404 });
+    }
   }
 };
 
