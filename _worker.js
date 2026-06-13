@@ -2,7 +2,7 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     
-    // API Routes - handle these with inline functions
+    // API Routes
     if (url.pathname.startsWith('/api/')) {
       if (url.pathname === '/api/hmh/queues') {
         return handleHMHQueues();
@@ -45,12 +45,12 @@ export default {
       return Response.redirect(url.toString(), 307);
     }
     
-    // Serve static assets
+    // Serve static assets from ASSETS binding
     try {
       return await env.ASSETS.fetch(request);
     } catch (e) {
-      // If ASSETS is not available, return 404
-      return new Response('Not Found', { status: 404 });
+      // Fallback: try to fetch from origin if ASSETS binding fails
+      return fetch(request);
     }
   }
 };
@@ -176,7 +176,7 @@ async function handleVitalCareTokens() {
 
 async function handleIGMHQueues() {
   try {
-    // IGMH placeholder - needs API integration
+    // IGMH placeholder - needs real-time scraping
     return Response.json([]);
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
