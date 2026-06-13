@@ -12,18 +12,44 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
+        includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
         manifest: {
-          name: 'Queue Tracker',
-          short_name: 'Tracker',
+          name: 'QuePulse - Hospital Queue Tracker',
+          short_name: 'QuePulse',
           description: 'Real-time hospital queue tracking and smart notifications.',
           theme_color: '#2563eb',
           background_color: '#ffffff',
           display: 'standalone',
+          orientation: 'portrait',
           icons: [
             {
                src: 'https://cdn-icons-png.flaticon.com/512/2855/2855906.png',
                sizes: '512x512',
                type: 'image/png'
+            },
+            {
+               src: 'https://cdn-icons-png.flaticon.com/512/2855/2855906.png',
+               sizes: '192x192',
+               type: 'image/png'
+            }
+          ]
+        },
+        workbox: {
+          globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+          runtimeCaching: [
+            {
+              urlPattern: /^https:\/\/api\./,
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'api-cache',
+                expiration: {
+                  maxEntries: 100,
+                  maxAgeSeconds: 60 * 5 // 5 minutes
+                },
+                cacheableResponse: {
+                  statuses: [0, 200]
+                }
+              }
             }
           ]
         }

@@ -141,5 +141,51 @@ export const queueService = {
       console.error('Failed to fetch ADK queues', e);
       return [];
     }
+  },
+
+  getExternalIGMHQueues: async (): Promise<Queue[]> => {
+    try {
+      let response = await fetch('/api/igmh/queues');
+      
+      if (!response.ok || response.headers.get('content-type')?.includes('text/html')) {
+        // Fallback to direct fetch if API fails
+        const response = await fetch('https://q04-mv.qbe.ee/igmh/s', {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          }
+        });
+        
+        // IGMH uses a React app, need to parse the page or use their API
+        // For now, return empty array until we can reverse-engineer their API
+        return [];
+      } else {
+        return await response.json();
+      }
+    } catch (e) {
+      console.error('Failed to fetch IGMH queues', e);
+      return [];
+    }
+  },
+
+  getExternalVilimaleQueues: async (): Promise<Queue[]> => {
+    try {
+      // Vilimale Hospital - part of Male' City Group
+      // May share API with IGMH or have separate endpoint
+      return [];
+    } catch (e) {
+      console.error('Failed to fetch Vilimale queues', e);
+      return [];
+    }
+  },
+
+  getExternalDharumavanthaQueues: async (): Promise<Queue[]> => {
+    try {
+      // Dharumavantha Hospital - part of Male' City Group
+      // May share API with IGMH or have separate endpoint
+      return [];
+    } catch (e) {
+      console.error('Failed to fetch Dharumavantha queues', e);
+      return [];
+    }
   }
 };

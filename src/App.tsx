@@ -16,6 +16,17 @@ export default function App() {
     return saved ? JSON.parse(saved) : null;
   });
 
+  // Handle URL-based hospital routing
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hospitalParam = urlParams.get('hospital');
+    if (hospitalParam && ['hmh', 'vitalcare', 'adk', 'igmh', 'vilimale', 'dharumavantha'].includes(hospitalParam)) {
+      setSource(hospitalParam as SiteSource);
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   const updateTracking = (newTracking: UserTracking | null) => {
     setTracking(newTracking);
     if (!newTracking) localStorage.removeItem('mv_queue_tracking');

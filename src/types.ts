@@ -13,7 +13,7 @@ export interface Queue {
   history?: string[];
 }
 
-export type SiteSource = 'hmh' | 'vitalcare' | 'adk';
+export type SiteSource = 'hmh' | 'vitalcare' | 'adk' | 'igmh' | 'vilimale' | 'dharumavantha';
 
 export interface UserTracking {
   source: SiteSource;
@@ -21,4 +21,5 @@ export interface UserTracking {
   isGlobal?: boolean;
   myToken: string;
   notifyThreshold: number;
+  roomNumber?: string; // Optional room number for tracking
 }

@@ -17,6 +17,7 @@ export function QueueBoard({ source, tracking, onUpdateTracking }: QueueBoardPro
   const [selectedQueue, setSelectedQueue] = useState<Queue | null>(null);
   const [setupTrackMode, setSetupTrackMode] = useState(false);
   const [setupToken, setSetupToken] = useState('');
+  const [setupRoomNumber, setSetupRoomNumber] = useState('');
   const [setupThreshold, setSetupThreshold] = useState(2);
   const [historyMap, setHistoryMap] = useState<Record<string, string[]>>(() => {
     const saved = localStorage.getItem('mv_queue_history');
@@ -34,6 +35,9 @@ export function QueueBoard({ source, tracking, onUpdateTracking }: QueueBoardPro
         if (source === 'hmh') data = await queueService.getExternalHMHQueues();
         else if (source === 'vitalcare') data = await queueService.getExternalVitalCareQueues();
         else if (source === 'adk') data = await queueService.getExternalADKQueues();
+        else if (source === 'igmh') data = await queueService.getExternalIGMHQueues();
+        else if (source === 'vilimale') data = await queueService.getExternalVilimaleQueues();
+        else if (source === 'dharumavantha') data = await queueService.getExternalDharumavanthaQueues();
         
         // Update history
         setHistoryMap(prev => {
@@ -129,7 +133,8 @@ export function QueueBoard({ source, tracking, onUpdateTracking }: QueueBoardPro
       source,
       queueId: activeSelectedQueue?.id,
       myToken: setupToken,
-      notifyThreshold: setupThreshold
+      notifyThreshold: setupThreshold,
+      roomNumber: setupRoomNumber || undefined
     });
     
     // Save threshold for future as well
@@ -138,6 +143,7 @@ export function QueueBoard({ source, tracking, onUpdateTracking }: QueueBoardPro
     if ('Notification' in window) Notification.requestPermission();
     setSetupTrackMode(false);
     setSelectedQueue(null);
+    setSetupRoomNumber('');
   };
 
   const clearTracking = () => {
@@ -193,7 +199,12 @@ export function QueueBoard({ source, tracking, onUpdateTracking }: QueueBoardPro
         </div>
         
         <h2 className="text-5xl font-black tracking-tighter uppercase leading-none">
-          {source === 'hmh' ? 'HMH' : source === 'vitalcare' ? 'VitalCare' : 'ADK'} <br />
+          {source === 'hmh' ? 'HMH' : 
+           source === 'vitalcare' ? 'VitalCare' : 
+           source === 'adk' ? 'ADK' :
+           source === 'igmh' ? 'IGMH' :
+           source === 'vilimale' ? 'Vilimale' :
+           source === 'dharumavantha' ? 'Dharumavantha' : source} <br />
           <span className="text-slate-400">QUEUES.</span>
         </h2>
       </div>
@@ -244,6 +255,7 @@ export function QueueBoard({ source, tracking, onUpdateTracking }: QueueBoardPro
                       setSelectedQueue(queue);
                       setSetupTrackMode(false);
                       setSetupToken('');
+                      setSetupRoomNumber('');
                     }}
                     className={`flex items-center justify-between p-4 rounded-3xl cursor-pointer transform-gpu ${
                       isTracked 
@@ -419,6 +431,17 @@ export function QueueBoard({ source, tracking, onUpdateTracking }: QueueBoardPro
                          autoFocus
                          className="w-full bg-white dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 outline-none focus:border-blue-500 font-bold text-sm"
                        />
+                     </div>
+                     <div>
+                       <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Room Number (Optional)</label>
+                       <input 
+                         type="text" 
+                         value={setupRoomNumber}
+                         onChange={e => setSetupRoomNumber(e.target.value)}
+                         placeholder="e.g. Room 5"
+                         className="w-full bg-white dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 outline-none focus:border-blue-500 font-bold text-sm"
+                       />
+                       <p className="text-[9px] text-slate-400 mt-1">Leave empty to track all counters</p>
                      </div>
                      <div>
                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Alert me when...</label>

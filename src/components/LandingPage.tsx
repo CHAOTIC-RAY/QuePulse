@@ -37,6 +37,33 @@ const SITES = [
     color: 'bg-teal-500',
     description: 'Premium specialist clinic tokens.'
   },
+  { 
+    id: 'igmh' as const, 
+    name: 'IGMH', 
+    shortName: 'IGMH',
+    location: 'Malé', 
+    icon: Hospital, 
+    color: 'bg-purple-600',
+    description: 'Indira Gandhi Memorial Hospital.'
+  },
+  { 
+    id: 'vilimale' as const, 
+    name: 'Vilimale Hospital', 
+    shortName: 'Vilimale',
+    location: 'Vilimale', 
+    icon: Building2, 
+    color: 'bg-orange-500',
+    description: 'Male\' City Group - Vilimale.'
+  },
+  { 
+    id: 'dharumavantha' as const, 
+    name: 'Dharumavantha Hospital', 
+    shortName: 'Dharumavantha',
+    location: 'Malé', 
+    icon: Activity, 
+    color: 'bg-green-600',
+    description: 'Male\' City Group - Dharumavantha.'
+  },
 ];
 
 export function LandingPage({ onSelectSite }: LandingPageProps) {
