@@ -2,7 +2,7 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     
-    // API Routes
+    // API Routes - handle these with inline functions
     if (url.pathname.startsWith('/api/')) {
       if (url.pathname === '/api/hmh/queues') {
         return handleHMHQueues();
@@ -45,7 +45,7 @@ export default {
       return Response.redirect(url.toString(), 307);
     }
     
-    // Static assets
+    // Serve static assets
     return env.ASSETS.fetch(request);
   }
 };
@@ -171,19 +171,7 @@ async function handleVitalCareTokens() {
 
 async function handleIGMHQueues() {
   try {
-    // IGMH uses a different system - need to scrape or use their API
-    const url = 'https://q04-mv.qbe.ee/igmh/s';
-    
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
-    });
-
-    const html = await response.text();
-    
-    // Try to extract queue data from the page
-    // This is a placeholder - actual implementation depends on IGMH's API structure
+    // IGMH placeholder - needs API integration
     return Response.json([]);
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
