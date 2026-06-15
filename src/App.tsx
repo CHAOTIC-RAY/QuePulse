@@ -152,7 +152,7 @@ export default function App() {
       <div className="flex-1 flex w-full min-h-0">
         <DesktopSidebar />
 
-        <main className="flex-1 w-full min-w-0 px-4 lg:px-8 pt-1 lg:pt-3 pb-28 lg:pb-8 max-w-3xl lg:max-w-none mx-auto lg:mx-0">
+        <main className="flex-1 w-full min-w-0 px-4 lg:px-8 pt-0 lg:pt-3 pb-28 lg:pb-8 max-w-3xl lg:max-w-none mx-auto lg:mx-0">
           <InstallBanner />
           <AnimatePresence mode="wait">
             {!source ? (

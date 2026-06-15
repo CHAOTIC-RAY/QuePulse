@@ -133,7 +133,7 @@ export function MobileDashboard({
 
   return (
     <div className="mobile-dash pb-2">
-      <header className="dash-top dash-header safe-top flex items-center justify-between gap-3">
+      <header className="dash-top dash-header flex items-center justify-between gap-3">
         <BrandLogo size="mobile" variant="plain" />
         <button
           type="button"

@@ -49,8 +49,14 @@ export function LandingPage({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="mobile-dash space-y-5">
       <DirectoryPanel isOpen={isDirectoryOpen} onClose={() => setIsDirectoryOpen(false)} />
+
+      {isMobile && (
+        <header className="dash-top dash-header">
+          <h1 className="dash-section-title text-lg">All hospitals</h1>
+        </header>
+      )}
 
       {!isMobile && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="pt-1 lg:pt-0">
@@ -63,10 +69,7 @@ export function LandingPage({
         </motion.div>
       )}
 
-      {isMobile && (
-        <h2 className="text-lg font-black tracking-tight safe-top pt-1">All hospitals</h2>
-      )}
-
+      <div className={isMobile ? 'dash-stack' : 'space-y-5'}>
       <div className="chip-scroll">
         {REGIONS.map((r) => {
           const active = region === r.id;
@@ -116,6 +119,7 @@ export function LandingPage({
           <span className="text-[9px] font-bold uppercase text-[var(--muted)]">Directory</span>
           <span className="text-sm font-black text-[var(--primary)]">Find a doctor</span>
         </button>
+      </div>
       </div>
     </div>
   );

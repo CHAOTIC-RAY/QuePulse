@@ -302,7 +302,7 @@
 }
 
 .dash-top {
-  padding-top: max(var(--dash-2xl), calc(env(safe-area-inset-top, 0px) + var(--dash-sm)));
+  padding-top: max(var(--dash-md), calc(env(safe-area-inset-top, 0px) + var(--dash-xs)));
 }
 
 .dash-header {
@@ -320,12 +320,12 @@
 
 .brand-logo-plain {
   filter: brightness(0);
-  opacity: 0.92;
+  opacity: 1;
 }
 
 :root.dark .brand-logo-plain {
   filter: brightness(0) invert(1);
-  opacity: 0.98;
+  opacity: 1;
 }
 
 .dash-section {
