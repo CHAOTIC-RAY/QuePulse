@@ -9,6 +9,7 @@ import {
   requestNotificationPermission,
   testNotification,
   syncTrackingToServiceWorker,
+  clearTrackingNotification,
 } from '../lib/notifications';
 import { getAlwaysOnNotifications, setAlwaysOnNotifications } from '../lib/alwaysOn';
 import { isNativeApp } from '../lib/platform';
@@ -56,6 +57,9 @@ export function TrackingHub({ isOpen, onClose, currentSource, tracking, onUpdate
       const next = { ...tracking, alwaysOnNotifications: enabled };
       onUpdateTracking(next);
       syncTrackingToServiceWorker(next);
+    }
+    if (!enabled) {
+      await clearTrackingNotification();
     }
     if (enabled && permState !== 'granted') {
       await enableNotifications();

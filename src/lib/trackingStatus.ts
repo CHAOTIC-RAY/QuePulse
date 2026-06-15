@@ -68,3 +68,7 @@ export function buildTrackingStatus(tracking: UserTracking, queue: Queue): Track
 export function buildAlertBody(tracking: UserTracking, queue: Queue): string {
   return buildTrackingStatus(tracking, queue).body;
 }
+
+export function getServingKey(queue: Queue): string {
+  return `${queue.id}:${queue.currentNumber}`;
+}

@@ -12,6 +12,7 @@ import {
   getRoomEtaText,
   getWaitEtaText,
 } from '../lib/queueTiming';
+import { isNativeApp } from '../lib/platform';
 import {
   checkTrackingAlert,
   requestNotificationPermission,
@@ -60,7 +61,7 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
       setHistoryMap(tokenHistory);
       setQueues(enriched);
 
-      if (tracking && tracking.source === source) {
+      if (tracking && tracking.source === source && !isNativeApp()) {
         const alert = checkTrackingAlert(tracking, data, lastNotificationRef.current);
         if (alert) {
           lastNotificationRef.current = alert.alertId;
