@@ -12,7 +12,6 @@ import {
   clearTrackingNotification,
 } from '../lib/notifications';
 import { getAlwaysOnNotifications, setAlwaysOnNotifications } from '../lib/alwaysOn';
-import { isNativeApp } from '../lib/platform';
 
 interface TrackingHubProps {
   isOpen: boolean;
@@ -233,37 +232,35 @@ export function TrackingHub({ isOpen, onClose, currentSource, tracking, onUpdate
                 <p className="text-[10px] text-[var(--muted)] mt-2">Notify when your token is this many numbers away</p>
               </div>
 
-              {isNativeApp() && (
-                <div
-                  className="p-4 rounded-2xl border border-[var(--border)] flex items-center justify-between gap-3"
-                  style={{ background: 'var(--surface)' }}
-                >
-                  <div className="flex items-start gap-3 min-w-0">
-                    <Pin className="w-4 h-4 text-[var(--primary)] shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-bold">Always-on notification</p>
-                      <p className="text-[10px] text-[var(--muted)] leading-relaxed mt-0.5">
-                        Live token, queue position & ETA in your notification shade — keeps tracking when the app is closed.
-                      </p>
-                    </div>
+              <div
+                className="p-4 rounded-2xl border border-[var(--border)] flex items-center justify-between gap-3"
+                style={{ background: 'var(--surface)' }}
+              >
+                <div className="flex items-start gap-3 min-w-0">
+                  <Pin className="w-4 h-4 text-[var(--primary)] shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-bold">Always-on notification</p>
+                    <p className="text-[10px] text-[var(--muted)] leading-relaxed mt-0.5">
+                      One live notification with token position & ETA — keeps updating when the app or PWA is in the background.
+                    </p>
                   </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={alwaysOn}
-                    onClick={() => toggleAlwaysOn(!alwaysOn)}
-                    className={`relative w-11 h-6 rounded-full shrink-0 transition-colors ${
-                      alwaysOn ? 'brand-gradient' : 'bg-[var(--border)]'
-                    }`}
-                  >
-                    <span
-                      className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
-                        alwaysOn ? 'translate-x-5' : ''
-                      }`}
-                    />
-                  </button>
                 </div>
-              )}
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={alwaysOn}
+                  onClick={() => toggleAlwaysOn(!alwaysOn)}
+                  className={`relative w-11 h-6 rounded-full shrink-0 transition-colors ${
+                    alwaysOn ? 'brand-gradient' : 'bg-[var(--border)]'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                      alwaysOn ? 'translate-x-5' : ''
+                    }`}
+                  />
+                </button>
+              </div>
 
               {tracking ? (
                 <div className="p-4 rounded-2xl border border-[var(--primary)]/20" style={{ background: 'rgba(123,67,151,0.08)' }}>

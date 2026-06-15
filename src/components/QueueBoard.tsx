@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Loader2, Bell, BellOff, Search, ChevronRight, History, X, RefreshCw, AlertTriangle, ArrowLeft, Clock, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { queueService } from '../services/queueService';
@@ -12,11 +12,8 @@ import {
   getRoomEtaText,
   getWaitEtaText,
 } from '../lib/queueTiming';
-import { isNativeApp } from '../lib/platform';
 import {
-  checkTrackingAlert,
   requestNotificationPermission,
-  showAlert,
   syncTrackingToServiceWorker,
 } from '../lib/notifications';
 import { getAlwaysOnNotifications } from '../lib/alwaysOn';
@@ -50,8 +47,6 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
     }
   });
 
-  const lastNotificationRef = useRef<string | null>(null);
-
   const fetchData = useCallback(async () => {
     setError(null);
     try {
@@ -61,12 +56,8 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
       setHistoryMap(tokenHistory);
       setQueues(enriched);
 
-      if (tracking && tracking.source === source && !isNativeApp()) {
-        const alert = checkTrackingAlert(tracking, data, lastNotificationRef.current);
-        if (alert) {
-          lastNotificationRef.current = alert.alertId;
-          await showAlert(alert.title, alert.body, { tag: alert.alertId });
-        }
+      if (tracking && tracking.source === source) {
+        syncTrackingToServiceWorker(tracking);
       }
     } catch (e) {
       console.error('Fetch error', e);
@@ -109,7 +100,6 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
   const clearTracking = () => {
     onUpdateTracking(null);
     syncTrackingToServiceWorker(null);
-    lastNotificationRef.current = null;
   };
 
   const filteredQueues = queues.filter((q) => {

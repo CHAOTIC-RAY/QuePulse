@@ -31,6 +31,7 @@ export function detectPriorityJump(prevToken: string, nextToken: string): boolea
 
 function loadHistory(): Record<string, string[]> {
   try {
+    if (typeof localStorage === 'undefined') return {};
     return JSON.parse(localStorage.getItem(HISTORY_KEY) || '{}');
   } catch {
     return {};
@@ -39,6 +40,7 @@ function loadHistory(): Record<string, string[]> {
 
 function loadTimedHistory(): Record<string, TokenHistoryEntry[]> {
   try {
+    if (typeof localStorage === 'undefined') return {};
     return JSON.parse(localStorage.getItem(HISTORY_TIMES_KEY) || '{}');
   } catch {
     return {};
@@ -47,6 +49,7 @@ function loadTimedHistory(): Record<string, TokenHistoryEntry[]> {
 
 function loadEtaCache(): EtaCacheStore {
   try {
+    if (typeof localStorage === 'undefined') return {};
     return JSON.parse(localStorage.getItem(ETA_CACHE_KEY) || '{}');
   } catch {
     return {};
@@ -54,7 +57,12 @@ function loadEtaCache(): EtaCacheStore {
 }
 
 function saveEtaCache(cache: EtaCacheStore) {
-  localStorage.setItem(ETA_CACHE_KEY, JSON.stringify(cache));
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(ETA_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // service worker has no localStorage
+  }
 }
 
 function computeAvgMsPerPatient(queueId: string): number | null {
@@ -123,8 +131,14 @@ export function recordQueueTimestamps(queues: Queue[]): Record<string, string[]>
   }
 
   if (changed) {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(tokenHistory));
-    localStorage.setItem(HISTORY_TIMES_KEY, JSON.stringify(timedHistory));
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(tokenHistory));
+        localStorage.setItem(HISTORY_TIMES_KEY, JSON.stringify(timedHistory));
+      }
+    } catch {
+      // unavailable in service worker
+    }
   }
 
   return tokenHistory;

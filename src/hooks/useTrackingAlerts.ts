@@ -1,10 +1,12 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type MutableRefObject } from 'react';
 import { App } from '@capacitor/app';
 import type { UserTracking } from '../types';
 import { queueService } from '../services/queueService';
 import {
   updateAlwaysOnNotification,
   showServingChangeAlert,
+  updateWebAlwaysOnNotification,
+  showWebServingChangeAlert,
   clearTrackingNotification,
   syncTrackingToServiceWorker,
 } from '../lib/notifications';
@@ -14,7 +16,42 @@ import { buildTrackingStatus, findTrackedQueue, getServingKey } from '../lib/tra
 
 const POLL_MS = 5_000;
 
-/** Poll queues and drive a single notification strategy on native. */
+async function handleTrackingPoll(
+  tracking: UserTracking,
+  lastServingRef: MutableRefObject<string | null>
+) {
+  const queues = await queueService.getQueuesForSource(tracking.source);
+  recordQueueTimestamps(queues);
+  const queue = findTrackedQueue(tracking, queues);
+  if (!queue) return;
+
+  const status = buildTrackingStatus(tracking, queue);
+  const servingKey = getServingKey(queue);
+  const alwaysOn = !!tracking.alwaysOnNotifications;
+  const url = `/?hospital=${tracking.source}`;
+
+  if (alwaysOn) {
+    const isUpdate = lastServingRef.current !== null;
+    if (isNativeApp()) {
+      await updateAlwaysOnNotification(status.title, status.body);
+    } else {
+      await updateWebAlwaysOnNotification(status.title, status.body, url, isUpdate);
+    }
+    lastServingRef.current = servingKey;
+    return;
+  }
+
+  if (lastServingRef.current !== null && lastServingRef.current !== servingKey) {
+    if (isNativeApp()) {
+      await showServingChangeAlert(status.title, status.body);
+    } else {
+      await showWebServingChangeAlert(status.title, status.body, url);
+    }
+  }
+  lastServingRef.current = servingKey;
+}
+
+/** Poll queues and drive a single notification strategy (native APK + web/PWA fallback). */
 export function useTrackingAlerts(tracking: UserTracking | null) {
   const lastServingRef = useRef<string | null>(null);
   const alwaysOnRef = useRef(false);
@@ -27,10 +64,15 @@ export function useTrackingAlerts(tracking: UserTracking | null) {
   useEffect(() => {
     syncTrackingToServiceWorker(tracking);
 
-    if (!isNativeApp()) return;
-
     if (!tracking) {
-      clearTrackingNotification();
+      void clearTrackingNotification();
+      return;
+    }
+
+    if (!isNativeApp() && navigator.serviceWorker?.controller) {
+      if (!tracking.alwaysOnNotifications) {
+        void clearTrackingNotification();
+      }
       return;
     }
 
@@ -39,25 +81,8 @@ export function useTrackingAlerts(tracking: UserTracking | null) {
 
     const poll = async () => {
       try {
-        const queues = await queueService.getQueuesForSource(tracking.source);
         if (!mounted) return;
-
-        recordQueueTimestamps(queues);
-        const queue = findTrackedQueue(tracking, queues);
-        if (!queue) return;
-
-        const status = buildTrackingStatus(tracking, queue);
-        const servingKey = getServingKey(queue);
-        const alwaysOn = !!tracking.alwaysOnNotifications;
-
-        if (alwaysOn) {
-          await updateAlwaysOnNotification(status.title, status.body);
-        } else {
-          if (lastServingRef.current !== null && lastServingRef.current !== servingKey) {
-            await showServingChangeAlert(status.title, status.body);
-          }
-          lastServingRef.current = servingKey;
-        }
+        await handleTrackingPoll(tracking, lastServingRef);
       } catch {
         // retry on next interval
       }
@@ -76,10 +101,18 @@ export function useTrackingAlerts(tracking: UserTracking | null) {
     };
 
     if (!tracking.alwaysOnNotifications) {
-      clearTrackingNotification();
+      void clearTrackingNotification();
     }
 
     startPolling();
+
+    if (!isNativeApp()) {
+      return () => {
+        mounted = false;
+        stopPolling();
+      };
+    }
+
     const listener = App.addListener('appStateChange', ({ isActive }) => {
       if (isActive) startPolling();
       else if (!alwaysOnRef.current) stopPolling();

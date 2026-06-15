@@ -14,6 +14,8 @@ const ICON = '/icons/icon-192.png';
 const ANDROID_CHANNEL_ID = 'queue-alerts';
 export const TRACKING_STATUS_NOTIFICATION_ID = 10001;
 export const TEST_NOTIFICATION_ID = 10099;
+export const WEB_LIVE_TAG = 'quepulse-live';
+export const WEB_SERVING_TAG = 'quepulse-serving';
 let nativeChannelReady = false;
 let alwaysOnForegroundActive = false;
 
@@ -157,16 +159,88 @@ export async function showServingChangeAlert(title: string, body: string): Promi
 }
 
 export async function clearTrackingNotification(): Promise<void> {
-  if (!isNativeApp()) return;
-  alwaysOnForegroundActive = false;
-  try {
-    await LocalNotifications.cancel({
-      notifications: [{ id: TRACKING_STATUS_NOTIFICATION_ID }],
-    });
-  } catch {
-    // ignore
+  if (isNativeApp()) {
+    alwaysOnForegroundActive = false;
+    try {
+      await LocalNotifications.cancel({
+        notifications: [{ id: TRACKING_STATUS_NOTIFICATION_ID }],
+      });
+    } catch {
+      // ignore
+    }
+    await stopBackgroundTracking();
+    return;
   }
-  await stopBackgroundTracking();
+
+  if (!('serviceWorker' in navigator)) return;
+  const post = (sw: ServiceWorker) => sw.postMessage({ type: 'CLEAR_TRACKING_NOTIFICATIONS' });
+  if (navigator.serviceWorker.controller) {
+    post(navigator.serviceWorker.controller);
+  } else {
+    const reg = await navigator.serviceWorker.ready;
+    if (reg.active) post(reg.active);
+  }
+
+  if ('Notification' in window && Notification.permission === 'granted') {
+    const reg = await navigator.serviceWorker?.ready;
+    const tags = new Set([WEB_LIVE_TAG, WEB_SERVING_TAG]);
+    if (reg) {
+      for (const notification of await reg.getNotifications()) {
+        if (notification.tag && tags.has(notification.tag)) notification.close();
+      }
+    }
+  }
+}
+
+async function showWebTrackingNotification(
+  title: string,
+  body: string,
+  tag: string,
+  url: string,
+  options?: { silent?: boolean; renotify?: boolean }
+): Promise<void> {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+  const payload = {
+    body,
+    icon: ICON,
+    badge: ICON,
+    tag,
+    renotify: options?.renotify ?? false,
+    silent: options?.silent ?? false,
+    data: { url },
+  } as NotificationOptions & { renotify?: boolean };
+
+  const reg = await navigator.serviceWorker?.ready;
+  if (reg) {
+    await reg.showNotification(title, payload);
+    return;
+  }
+
+  new Notification(title, { body, icon: ICON, tag });
+}
+
+/** Single live notification for web/PWA always-on mode (same tag, silent updates). */
+export async function updateWebAlwaysOnNotification(
+  title: string,
+  body: string,
+  url: string,
+  isUpdate: boolean
+): Promise<void> {
+  await showWebTrackingNotification(title, body, WEB_LIVE_TAG, url, { silent: isUpdate });
+}
+
+/** One-shot alert when serving number changes (always-on off). */
+export async function showWebServingChangeAlert(
+  title: string,
+  body: string,
+  url: string
+): Promise<void> {
+  const reg = await navigator.serviceWorker?.ready;
+  if (reg) {
+    for (const n of await reg.getNotifications({ tag: WEB_LIVE_TAG })) n.close();
+  }
+  await showWebTrackingNotification(title, body, WEB_SERVING_TAG, url, { renotify: true });
 }
 
 export async function showAlert(
@@ -264,10 +338,19 @@ export async function testNotification(): Promise<{ ok: boolean; message: string
 }
 
 export function syncTrackingToServiceWorker(tracking: UserTracking | null) {
-  if (isNativeApp() || !navigator.serviceWorker?.controller) return;
-  navigator.serviceWorker.controller.postMessage({
-    type: 'SYNC_TRACKING',
-    tracking,
+  if (isNativeApp()) return;
+  if (!('serviceWorker' in navigator)) return;
+
+  const payload = { type: 'SYNC_TRACKING', tracking };
+  const post = (sw: ServiceWorker) => sw.postMessage(payload);
+
+  if (navigator.serviceWorker.controller) {
+    post(navigator.serviceWorker.controller);
+    return;
+  }
+
+  void navigator.serviceWorker.ready.then((reg) => {
+    if (reg.active) post(reg.active);
   });
 }
 
