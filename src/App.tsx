@@ -10,6 +10,7 @@ import { AppFooter } from './components/AppFooter';
 import { BrandLogo } from './components/BrandLogo';
 import { SiteSource, UserTracking } from './types';
 import { LIVE_HOSPITAL_IDS } from './data/hospitals';
+import { addRecentHospital } from './lib/recentHospitals';
 import { Moon, Sun, Bell, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { registerServiceWorker, syncTrackingToServiceWorker } from './lib/notifications';
@@ -18,6 +19,7 @@ import { useIsMobile } from './hooks/useMediaQuery';
 
 export default function App() {
   const [source, setSource] = useState<SiteSource | null>(null);
+  const [mobileScreen, setMobileScreen] = useState<'dashboard' | 'hospitals'>('dashboard');
   const { isDark, toggle } = useTheme();
   const isMobile = useIsMobile();
   const [isAlertsOpen, setIsAlertsOpen] = useState(false);
@@ -43,6 +45,15 @@ export default function App() {
     }
   }, []);
 
+  useEffect(() => {
+    if (source) addRecentHospital(source);
+  }, [source]);
+
+  const [recentVersion, setRecentVersion] = useState(0);
+  useEffect(() => {
+    if (!source) setRecentVersion((v) => v + 1);
+  }, [source]);
+
   const updateTracking = (newTracking: UserTracking | null) => {
     setTracking(newTracking);
     if (!newTracking) localStorage.removeItem('mv_queue_tracking');
@@ -50,7 +61,7 @@ export default function App() {
     syncTrackingToServiceWorker(newTracking);
   };
 
-  const activeTab = isAlertsOpen ? 'alerts' : source ? 'hospitals' : 'home';
+  const activeTab = isAlertsOpen ? 'alerts' : source ? 'hospitals' : mobileScreen === 'hospitals' ? 'hospitals' : 'home';
 
   return (
     <div className="min-h-[100dvh] flex flex-col">
@@ -62,8 +73,8 @@ export default function App() {
         onUpdateTracking={updateTracking}
       />
 
-      <header className="sticky top-0 z-50 glass safe-top">
-        <div className="flex items-center justify-between h-14 px-4 lg:px-8 w-full">
+      <header className={`sticky top-0 z-50 safe-top ${isMobile ? 'mobile-header' : 'glass'}`}>
+        <div className="flex items-center justify-between h-12 lg:h-14 px-4 lg:px-8 w-full">
           {source ? (
             <button
               onClick={() => setSource(null)}
@@ -71,8 +82,12 @@ export default function App() {
             >
               <ArrowLeft className="w-4 h-4" /> Back
             </button>
+          ) : isMobile ? (
+            <div className="pointer-events-none">
+              <BrandLogo size="mobile" />
+            </div>
           ) : (
-            <button onClick={() => setSource(null)} className="lg:hidden">
+            <button onClick={() => setSource(null)}>
               <BrandLogo size="md" />
             </button>
           )}
@@ -86,23 +101,25 @@ export default function App() {
           <div className="flex items-center gap-1 ml-auto">
             <button
               onClick={toggle}
-              className="w-9 h-9 rounded-xl flex items-center justify-center border border-transparent hover:border-[var(--border)]"
+              className="w-9 h-9 rounded-xl flex items-center justify-center border border-transparent hover:border-[var(--border)] active:scale-95 transition-transform"
               aria-label="Toggle theme"
             >
               {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
-            <button
-              onClick={() => setIsAlertsOpen(true)}
-              className={`w-9 h-9 rounded-xl flex items-center justify-center relative ${
-                tracking ? 'brand-gradient text-white' : 'border border-transparent hover:border-[var(--border)]'
-              }`}
-              aria-label="Alerts"
-            >
-              <Bell className="w-4 h-4" />
-              {tracking && (
-                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-[var(--accent)] rounded-full border-2 border-[var(--glass-bg)]" />
-              )}
-            </button>
+            {!isMobile && (
+              <button
+                onClick={() => setIsAlertsOpen(true)}
+                className={`w-9 h-9 rounded-xl flex items-center justify-center relative ${
+                  tracking ? 'brand-gradient text-white' : 'border border-transparent hover:border-[var(--border)]'
+                }`}
+                aria-label="Alerts"
+              >
+                <Bell className="w-4 h-4" />
+                {tracking && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-[var(--accent)] rounded-full border-2 border-[var(--glass-bg)]" />
+                )}
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -110,19 +127,26 @@ export default function App() {
       <div className="flex-1 flex w-full min-h-0">
         <DesktopSidebar />
 
-        <main className="flex-1 w-full min-w-0 px-4 lg:px-8 pt-3 pb-28 lg:pb-8 max-w-3xl lg:max-w-none mx-auto lg:mx-0">
+        <main className="flex-1 w-full min-w-0 px-4 lg:px-8 pt-2 lg:pt-3 pb-28 lg:pb-8 max-w-3xl lg:max-w-none mx-auto lg:mx-0">
           <InstallBanner />
           <AnimatePresence mode="wait">
             {!source ? (
               <motion.div
-                key="landing"
+                key={mobileScreen}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
                 className="lg:max-w-5xl"
               >
-                {tracking && <LiveTrackingBanner tracking={tracking} />}
-                <LandingPage onSelectSite={setSource} />
+                {!isMobile && tracking && <LiveTrackingBanner tracking={tracking} />}
+                <LandingPage
+                  onSelectSite={setSource}
+                  mobileScreen={mobileScreen}
+                  tracking={tracking}
+                  onUpdateTracking={updateTracking}
+                  onOpenAlerts={() => setIsAlertsOpen(true)}
+                  recentVersion={recentVersion}
+                />
               </motion.div>
             ) : (
               <motion.div
@@ -146,11 +170,13 @@ export default function App() {
         hasTracking={!!tracking}
         onHome={() => {
           setSource(null);
+          setMobileScreen('dashboard');
           setIsAlertsOpen(false);
         }}
         onHospitals={() => {
+          setSource(null);
+          setMobileScreen('hospitals');
           setIsAlertsOpen(false);
-          if (!source) window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         onAlerts={() => setIsAlertsOpen(true)}
       />

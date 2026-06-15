@@ -1,16 +1,31 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { AlertCircle, Phone } from 'lucide-react';
-import { SiteSource } from '../types';
+import { SiteSource, UserTracking } from '../types';
 import { DirectoryPanel } from './DirectoryPanel';
 import { HospitalCard } from './HospitalCard';
+import { MobileDashboard } from './MobileDashboard';
 import { HOSPITALS, REGIONS, HospitalRegion } from '../data/hospitals';
+import { useIsMobile } from '../hooks/useMediaQuery';
 
 interface LandingPageProps {
   onSelectSite: (site: SiteSource) => void;
+  mobileScreen?: 'dashboard' | 'hospitals';
+  tracking?: UserTracking | null;
+  onUpdateTracking?: (t: UserTracking | null) => void;
+  onOpenAlerts?: () => void;
+  recentVersion?: number;
 }
 
-export function LandingPage({ onSelectSite }: LandingPageProps) {
+export function LandingPage({
+  onSelectSite,
+  mobileScreen = 'dashboard',
+  tracking = null,
+  onUpdateTracking,
+  onOpenAlerts,
+  recentVersion = 0,
+}: LandingPageProps) {
+  const isMobile = useIsMobile();
   const [isDirectoryOpen, setIsDirectoryOpen] = useState(false);
   const [region, setRegion] = useState<HospitalRegion | 'all'>('all');
 
@@ -19,25 +34,37 @@ export function LandingPage({ onSelectSite }: LandingPageProps) {
     [region]
   );
 
+  if (isMobile && mobileScreen === 'dashboard') {
+    return (
+      <div key={recentVersion}>
+        <MobileDashboard
+          tracking={tracking}
+          onUpdateTracking={onUpdateTracking ?? (() => {})}
+          onSelectSite={onSelectSite}
+          onOpenAlerts={onOpenAlerts ?? (() => {})}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <DirectoryPanel isOpen={isDirectoryOpen} onClose={() => setIsDirectoryOpen(false)} />
 
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="pt-1 lg:pt-0"
-      >
-        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--muted)] mb-2 lg:hidden">
-          Maldives · Live queues
-        </p>
-        <h1 className="text-[2rem] lg:text-4xl leading-[1.05] font-black tracking-tight">
-          Track your <span className="brand-text-gradient">hospital queue</span>
-        </h1>
-        <p className="text-sm text-[var(--muted)] mt-2 max-w-xl">
-          Real-time tokens from {HOSPITALS.length} hospitals. Tap a card to view counters and set smart alerts.
-        </p>
-      </motion.div>
+      {!isMobile && (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="pt-1 lg:pt-0">
+          <h1 className="text-[2rem] lg:text-4xl leading-[1.05] font-black tracking-tight">
+            Track your <span className="brand-text-gradient">hospital queue</span>
+          </h1>
+          <p className="text-sm text-[var(--muted)] mt-2 max-w-xl">
+            Real-time tokens from {HOSPITALS.length} hospitals. Tap a card to view counters and set smart alerts.
+          </p>
+        </motion.div>
+      )}
+
+      {isMobile && (
+        <h2 className="text-lg font-black tracking-tight">All hospitals</h2>
+      )}
 
       <div className="chip-scroll">
         {REGIONS.map((r) => {
@@ -64,11 +91,7 @@ export function LandingPage({ onSelectSite }: LandingPageProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5 lg:gap-3">
         {filtered.map((hospital, index) => (
           <div key={hospital.id}>
-            <HospitalCard
-              hospital={hospital}
-              index={index}
-              onSelect={() => onSelectSite(hospital.id)}
-            />
+            <HospitalCard hospital={hospital} index={index} onSelect={() => onSelectSite(hospital.id)} />
           </div>
         ))}
       </div>

@@ -42,7 +42,7 @@ export function BottomNav({ activeTab, hasTracking, onHome, onHospitals, onAlert
                 <span className="relative">
                   <Icon className="w-5 h-5" strokeWidth={active ? 2.5 : 2} />
                   {item.id === 'alerts' && hasTracking && (
-                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[var(--accent)] ring-2 ring-[var(--glass-bg)]" />
+                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[var(--accent)] ring-2 ring-[var(--nav-glass-bg)]" />
                   )}
                 </span>
                 <span className="text-[9px] font-bold tracking-wide">{item.label}</span>
