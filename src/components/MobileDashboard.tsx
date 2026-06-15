@@ -216,7 +216,7 @@ export function MobileDashboard({
                       return (
                         <p className="dash-stat-value-serving">
                           <span className="dash-stat-token">{parts.token}</span>
-                          <span className="dash-stat-room"> · {parts.room}</span>
+                          <span className="dash-stat-room">· {parts.room}</span>
                         </p>
                       );
                     })()
@@ -282,10 +282,14 @@ export function MobileDashboard({
                       const parts = getServingParts(servingQueue);
                       if (!parts) return <span className="font-black">…</span>;
                       return (
-                        <>
-                          <span className="font-black tabular-nums">{parts.token}</span>
-                          <span className="text-[11px] font-semibold opacity-75"> · {parts.room}</span>
-                        </>
+                        <span className="dash-stat-value-serving inline-flex">
+                          <span className="dash-stat-token dash-stat-token--inverse text-xl">
+                            {parts.token}
+                          </span>
+                          <span className="dash-stat-room dash-stat-room--inverse">
+                            · {parts.room}
+                          </span>
+                        </span>
                       );
                     })()}
                   </p>
