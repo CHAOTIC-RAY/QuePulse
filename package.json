@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build",
+    "build:mobile": "npm run build && npx cap sync android",
+    "build:apk": "npm run build:mobile && cd android && ./gradlew assembleDebug",
     "preview": "npm run build && wrangler dev",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
@@ -30,6 +32,10 @@
     "vite": "^6.2.3"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/cli": "^8.4.0",
+    "@capacitor/core": "^8.4.0",
+    "@capacitor/local-notifications": "^8.2.0",
     "@cloudflare/vite-plugin": "^1.40.2",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",

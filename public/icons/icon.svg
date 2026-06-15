@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2563eb"/>
+      <stop offset="100%" style="stop-color:#4f46e5"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="108" fill="url(#g)"/>
+  <path fill="#fff" d="M148 168h216c17.7 0 32 14.3 32 32v24c0 17.7-14.3 32-32 32H148c-17.7 0-32-14.3-32-32v-24c0-17.7 14.3-32 32-32zm0 120h216c17.7 0 32 14.3 32 32v24c0 17.7-14.3 32-32 32H148c-17.7 0-32-14.3-32-32v-24c0-17.7 14.3-32 32-32z"/>
+  <circle cx="196" cy="212" r="20" fill="#93c5fd"/>
+  <circle cx="196" cy="332" r="20" fill="#93c5fd"/>
+  <text x="300" y="228" font-family="Arial,sans-serif" font-size="56" font-weight="700" fill="#fff">Q</text>
+  <text x="268" y="352" font-family="Arial,sans-serif" font-size="44" font-weight="700" fill="#dbeafe">Pulse</text>
+</svg>

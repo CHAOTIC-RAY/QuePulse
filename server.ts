@@ -10,67 +10,93 @@ const SCRAPE_HEADERS = {
 const QUEUEBEE = {
   base: 'https://q04-mv.qbe.ee',
   configPath: '/config/igmh/server.json',
-  branches: {
-    igmh: 'W3LL9e6oMktRc1KK1DrwJA==',
-    vilimale: 'KeB0iLWtjjvGBrxkebx/6A==',
-    dharumavantha: 'toKrLsBreyiInmDONtYdZw==',
-  },
+  defaultBranch: 'toKrLsBreyiInmDONtYdZw==',
+  branchMatchers: {
+    igmh: (name: string) => /\bigmh\b/i.test(name) && !/vill?imale|dharumavantha/i.test(name),
+    vilimale: (name: string) => /vill?imale/i.test(name),
+    dharumavantha: (name: string) => /dharumavantha/i.test(name),
+  } as Record<string, (name: string) => boolean>,
 };
 
 let queuebeeCreds: { client_id: string; country_code: string } | null = null;
 let queuebeeCredsAt = 0;
-
-async function getQueueBeeCreds() {
-  if (queuebeeCreds && Date.now() - queuebeeCredsAt < 3600000) return queuebeeCreds;
-  const resp = await fetch(`${QUEUEBEE.base}${QUEUEBEE.configPath}`, { headers: SCRAPE_HEADERS });
-  const data = await resp.json();
-  queuebeeCreds = {
-    client_id: data.server.client,
-    country_code: data.server.country,
-  };
-  queuebeeCredsAt = Date.now();
-  return queuebeeCreds;
-}
+let branchCache: Record<string, string> | null = null;
+let branchCacheAt = 0;
 
 function reqUid() {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
 
-async function scrapeQueueBeeBranch(hospital: keyof typeof QUEUEBEE.branches, prefix: string) {
-  const creds = await getQueueBeeCreds();
-  const branchId = QUEUEBEE.branches[hospital];
+function isActiveToken(token: unknown) {
+  if (!token) return false;
+  const t = String(token).trim().toUpperCase();
+  return t !== '' && t !== '-' && t !== 'N/A' && t !== 'CLOSED' && t !== '0';
+}
 
+async function getQueueBeeCreds() {
+  if (queuebeeCreds && Date.now() - queuebeeCredsAt < 3600000) return queuebeeCreds;
+  const resp = await fetch(`${QUEUEBEE.base}${QUEUEBEE.configPath}`, { headers: SCRAPE_HEADERS });
+  const data = await resp.json();
+  queuebeeCreds = { client_id: data.server.client, country_code: data.server.country };
+  queuebeeCredsAt = Date.now();
+  return queuebeeCreds;
+}
+
+async function queuebeePost(path: string, creds: { client_id: string; country_code: string }, extra: Record<string, string> = {}) {
   const body = new FormData();
   body.append('req_uid', reqUid());
   body.append('country_code', creds.country_code);
   body.append('client_id', creds.client_id);
-  body.append('branch_id', branchId);
+  body.append('branch_id', QUEUEBEE.defaultBranch);
+  for (const [k, v] of Object.entries(extra)) body.append(k, v);
+  const resp = await fetch(`${QUEUEBEE.base}${path}`, { method: 'POST', headers: SCRAPE_HEADERS, body });
+  return resp.json();
+}
 
-  const resp = await fetch(`${QUEUEBEE.base}/api_qapp/listservice`, {
-    method: 'POST',
-    headers: SCRAPE_HEADERS,
-    body,
-  });
+async function resolveBranchMap() {
+  if (branchCache && Date.now() - branchCacheAt < 1800000) return branchCache;
+  const creds = await getQueueBeeCreds();
+  const data = await queuebeePost('/api_qapp/listbranch', creds);
+  const map: Record<string, string> = {};
+  if (data.status === 200 && Array.isArray(data.data)) {
+    for (const [key, matcher] of Object.entries(QUEUEBEE.branchMatchers)) {
+      const branch = data.data.find((b: { name?: string; mid?: string }) => matcher(b.name || ''));
+      if (branch?.mid) map[key] = branch.mid;
+    }
+  }
+  branchCache = map;
+  branchCacheAt = Date.now();
+  return map;
+}
 
-  const data = await resp.json();
-  if (data.status !== 200 || !Array.isArray(data.data)) return [];
+async function scrapeQueueBeeBranch(hospital: string, prefix: string) {
+  const creds = await getQueueBeeCreds();
+  const branches = await resolveBranchMap();
+  const branchId = branches[hospital];
+  if (!branchId) throw new Error(`Branch not found for ${hospital}`);
+
+  const data = await queuebeePost('/api_qapp/listservice', creds, { branch_id: branchId });
+  if (data.status !== 200 || !Array.isArray(data.data)) {
+    throw new Error(data.message || `QueueBee scrape failed for ${hospital}`);
+  }
 
   const queues: any[] = [];
   for (const dept of data.data) {
     for (const svc of dept.dept_service_data || []) {
       const token = svc.serv_current_serving;
-      if (!token) continue;
+      if (!isActiveToken(token)) continue;
+      const isRoom = /room/i.test(svc.serv_label || svc.serv_name || '');
       queues.push({
         id: `${prefix}-${svc.serv_id}`,
         name: svc.serv_label || svc.serv_name,
         prefix: '',
-        currentNumber: token,
-        counterInfo: dept.dept_label || 'Live',
+        currentNumber: String(token),
+        counterInfo: isRoom ? `Room · ${dept.dept_label || 'Live'}` : dept.dept_label || 'Live',
         lastUpdated: new Date(),
       });
     }
   }
-  return queues;
+  return queues.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 async function scrapeHMH() {

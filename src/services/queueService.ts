@@ -3,84 +3,34 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Queue } from '../types';
+import { Queue, SiteSource } from '../types';
+
+async function fetchQueues(endpoint: string): Promise<Queue[]> {
+  const response = await fetch(endpoint, { cache: 'no-store' });
+  const data = await response.json();
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.queues)) return data.queues;
+  if (!response.ok) throw new Error(data?.error || `Request failed: ${response.status}`);
+  return [];
+}
 
 export const queueService = {
-  getExternalHMHQueues: async (): Promise<Queue[]> => {
-    try {
-      const response = await fetch('/api/hmh/queues');
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status}`);
-      }
-      return await response.json();
-    } catch (e) {
-      console.error('Failed to fetch HMH queues', e);
-      return [];
-    }
-  },
+  getExternalHMHQueues: () => fetchQueues('/api/hmh/queues'),
+  getExternalVitalCareQueues: () => fetchQueues('/api/vitalcare/tokens'),
+  getExternalADKQueues: () => fetchQueues('/api/adk/queues'),
+  getExternalIGMHQueues: () => fetchQueues('/api/igmh/queues'),
+  getExternalVilimaleQueues: () => fetchQueues('/api/vilimale/queues'),
+  getExternalDharumavanthaQueues: () => fetchQueues('/api/dharumavantha/queues'),
 
-  getExternalVitalCareQueues: async (): Promise<Queue[]> => {
-    try {
-      const response = await fetch('/api/vitalcare/tokens');
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status}`);
-      }
-      return await response.json();
-    } catch (e) {
-      console.error('Failed to fetch Vital Care queues', e);
-      return [];
-    }
+  getQueuesForSource(source: SiteSource): Promise<Queue[]> {
+    const map: Record<SiteSource, () => Promise<Queue[]>> = {
+      hmh: this.getExternalHMHQueues,
+      vitalcare: this.getExternalVitalCareQueues,
+      adk: this.getExternalADKQueues,
+      igmh: this.getExternalIGMHQueues,
+      vilimale: this.getExternalVilimaleQueues,
+      dharumavantha: this.getExternalDharumavanthaQueues,
+    };
+    return map[source]();
   },
-
-  getExternalADKQueues: async (): Promise<Queue[]> => {
-    try {
-      const response = await fetch('/api/adk/queues');
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status}`);
-      }
-      return await response.json();
-    } catch (e) {
-      console.error('Failed to fetch ADK queues', e);
-      return [];
-    }
-  },
-
-  getExternalIGMHQueues: async (): Promise<Queue[]> => {
-    try {
-      const response = await fetch('/api/igmh/queues');
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status}`);
-      }
-      return await response.json();
-    } catch (e) {
-      console.error('Failed to fetch IGMH queues', e);
-      return [];
-    }
-  },
-
-  getExternalVilimaleQueues: async (): Promise<Queue[]> => {
-    try {
-      const response = await fetch('/api/vilimale/queues');
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status}`);
-      }
-      return await response.json();
-    } catch (e) {
-      console.error('Failed to fetch Vilimale queues', e);
-      return [];
-    }
-  },
-
-  getExternalDharumavanthaQueues: async (): Promise<Queue[]> => {
-    try {
-      const response = await fetch('/api/dharumavantha/queues');
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status}`);
-      }
-      return await response.json();
-    } catch (e) {
-      console.error('Failed to fetch Dharumavantha queues', e);
-      return [];
-    }
-  }
 };

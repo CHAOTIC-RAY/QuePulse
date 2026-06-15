@@ -1,8 +1,23 @@
-import { useState, useEffect, useRef } from 'react';
-import { Users, Loader2, Bell, BellOff, Search, ChevronRight, MapPin, Hospital, Activity, Clock, History, X } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Loader2, Bell, BellOff, Search, ChevronRight, Clock, History, X, RefreshCw, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { queueService } from '../services/queueService';
 import { SiteSource, Queue, UserTracking } from '../types';
+import {
+  checkTrackingAlert,
+  requestNotificationPermission,
+  showAlert,
+  syncTrackingToServiceWorker,
+} from '../lib/notifications';
+
+const SITE_LABELS: Record<SiteSource, string> = {
+  hmh: 'HMH',
+  vitalcare: 'VitalCare',
+  adk: 'ADK',
+  igmh: 'IGMH',
+  vilimale: 'Vilimale',
+  dharumavantha: 'Dharumavantha',
+};
 
 interface QueueBoardProps {
   source: SiteSource;
@@ -10,488 +25,382 @@ interface QueueBoardProps {
   onUpdateTracking: (t: UserTracking | null) => void;
 }
 
+function getCategory(name: string, counterInfo: string) {
+  const text = `${name} ${counterInfo}`.toUpperCase();
+  if (/\bROOM\b/.test(text)) return 'Rooms';
+  if (/\bGP\b|\bGOPD\b/.test(text)) return 'OPD';
+  if (/\bER\b|EMERGENCY|TRIAGE/.test(text)) return 'Emergency';
+  if (/\bLAB\b|SAMPLE|X-?RAY|ULTRASOUND/.test(text)) return 'Diagnostics';
+  if (/\bMEMO\b|REGISTRATION/.test(text)) return 'Registration';
+  return 'Services';
+}
+
 export function QueueBoard({ source, tracking, onUpdateTracking }: QueueBoardProps) {
   const [queues, setQueues] = useState<Queue[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedQueue, setSelectedQueue] = useState<Queue | null>(null);
   const [setupTrackMode, setSetupTrackMode] = useState(false);
   const [setupToken, setSetupToken] = useState('');
-  const [setupRoomNumber, setSetupRoomNumber] = useState('');
-  const [setupThreshold, setSetupThreshold] = useState(2);
-  const [historyMap, setHistoryMap] = useState<Record<string, string[]>>(() => {
-    const saved = localStorage.getItem('mv_queue_history');
-    return saved ? JSON.parse(saved) : {};
+  const [setupThreshold, setSetupThreshold] = useState(() => {
+    const saved = localStorage.getItem('mv_queue_notify_threshold');
+    return saved ? parseInt(saved, 10) : 2;
   });
-  
-  const [myTokenInput, setMyTokenInput] = useState('');
+  const [historyMap, setHistoryMap] = useState<Record<string, string[]>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('mv_queue_history') || '{}');
+    } catch {
+      return {};
+    }
+  });
+
   const lastNotificationRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        let data: Queue[] = [];
-        if (source === 'hmh') data = await queueService.getExternalHMHQueues();
-        else if (source === 'vitalcare') data = await queueService.getExternalVitalCareQueues();
-        else if (source === 'adk') data = await queueService.getExternalADKQueues();
-        else if (source === 'igmh') data = await queueService.getExternalIGMHQueues();
-        else if (source === 'vilimale') data = await queueService.getExternalVilimaleQueues();
-        else if (source === 'dharumavantha') data = await queueService.getExternalDharumavanthaQueues();
-        
-        // Update history
-        setHistoryMap(prev => {
-          const newMap = { ...prev };
-          let changed = false;
-          
-          let timesMap: Record<string, {token: string, time: number}[]> = {};
-          try {
-            const savedTimes = localStorage.getItem('mv_queue_history_times');
-            if (savedTimes) timesMap = JSON.parse(savedTimes);
-          } catch(e) {}
+  const fetchData = useCallback(async () => {
+    setError(null);
+    try {
+      const data = await queueService.getQueuesForSource(source);
 
-          data.forEach(q => {
-            const currentHistory = newMap[q.id] || [];
-            if (currentHistory[0] !== q.currentNumber) {
-              const updated = [q.currentNumber, ...currentHistory].slice(0, 5);
-              newMap[q.id] = updated;
-              
-              // update times history
-              const tHist = timesMap[q.id] || [];
-              const tUpdate = [{ token: q.currentNumber, time: Date.now() }, ...tHist].slice(0, 10);
-              timesMap[q.id] = tUpdate;
-              
-              changed = true;
-            }
-          });
-          if (changed) {
-            localStorage.setItem('mv_queue_history', JSON.stringify(newMap));
-            localStorage.setItem('mv_queue_history_times', JSON.stringify(timesMap));
+      setHistoryMap((prev) => {
+        const newMap = { ...prev };
+        let changed = false;
+        data.forEach((q) => {
+          const currentHistory = newMap[q.id] || [];
+          if (currentHistory[0] !== q.currentNumber) {
+            newMap[q.id] = [q.currentNumber, ...currentHistory].slice(0, 5);
+            changed = true;
           }
-          return newMap;
         });
+        if (changed) localStorage.setItem('mv_queue_history', JSON.stringify(newMap));
+        return changed ? newMap : prev;
+      });
 
-        setQueues(data);
-        
-        if (tracking && tracking.source === source) {
-          const target = parseInt(tracking.myToken.replace(/\D/g, ''));
-          
-          if (tracking.isGlobal) {
-            // Search all counters in current source
-            data.forEach(q => {
-              const current = parseInt(q.currentNumber.replace(/\D/g, ''));
-              if (!isNaN(current) && !isNaN(target)) {
-                const diff = target - current;
-                if (diff <= tracking.notifyThreshold && diff >= 0) {
-                   const notifId = `global-${q.id}-${q.currentNumber}`;
-                   if (lastNotificationRef.current !== notifId) {
-                     sendNotification(
-                       `Global Match at ${q.name}`,
-                       `Token ${q.currentNumber} is now serving. You are close!`
-                     );
-                     lastNotificationRef.current = notifId;
-                   }
-                }
-              }
-            });
-          } else {
-            const matchedQueue = data.find(q => q.id === tracking.queueId);
-            if (matchedQueue) {
-              const current = parseInt(matchedQueue.currentNumber.replace(/\D/g, ''));
-              if (!isNaN(current) && !isNaN(target)) {
-                const diff = target - current;
-                if (diff <= tracking.notifyThreshold && diff >= 0) {
-                  const notifId = `${tracking.queueId}-${matchedQueue.currentNumber}`;
-                  if (lastNotificationRef.current !== notifId) {
-                    sendNotification(
-                      `Queue Alert: ${matchedQueue.name}`,
-                      `Current: ${matchedQueue.currentNumber}. Your turn is next!`
-                    );
-                    lastNotificationRef.current = notifId;
-                  }
-                }
-              }
-            }
-          }
+      setQueues(data);
+
+      if (tracking && tracking.source === source) {
+        const alert = checkTrackingAlert(tracking, data, lastNotificationRef.current);
+        if (alert) {
+          lastNotificationRef.current = alert.alertId;
+          await showAlert(alert.title, alert.body, { tag: alert.alertId });
         }
-      } catch (e) {
-        console.error('Fetch error', e);
-      } finally {
-        setLoading(false);
       }
-    };
-
-    fetchData();
-    const interval = setInterval(fetchData, 10000);
-    return () => clearInterval(interval);
+    } catch (e) {
+      console.error('Fetch error', e);
+      setError('Could not load live queues. Pull to refresh or try again.');
+    } finally {
+      setLoading(false);
+    }
   }, [source, tracking]);
 
-  const handleSaveTracking = () => {
-    if (!setupToken) return;
-    
-    onUpdateTracking({
+  useEffect(() => {
+    setLoading(true);
+    fetchData();
+    const interval = setInterval(fetchData, 12000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
+  const handleSaveTracking = async () => {
+    if (!setupToken || !activeSelectedQueue) return;
+    const perm = await requestNotificationPermission();
+    if (perm !== 'granted') {
+      alert('Please allow notifications to receive queue alerts.');
+    }
+    const next: UserTracking = {
       source,
-      queueId: activeSelectedQueue?.id,
+      queueId: activeSelectedQueue.id,
       myToken: setupToken,
       notifyThreshold: setupThreshold,
-      roomNumber: setupRoomNumber || undefined
-    });
-    
-    // Save threshold for future as well
+    };
+    onUpdateTracking(next);
+    syncTrackingToServiceWorker(next);
     localStorage.setItem('mv_queue_notify_threshold', setupThreshold.toString());
-    
-    if ('Notification' in window) Notification.requestPermission();
     setSetupTrackMode(false);
     setSelectedQueue(null);
-    setSetupRoomNumber('');
+    setSetupToken('');
   };
 
   const clearTracking = () => {
     onUpdateTracking(null);
+    syncTrackingToServiceWorker(null);
+    lastNotificationRef.current = null;
   };
 
-  const sendNotification = (title: string, body: string) => {
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(title, { body });
-    }
-  };
-
-  const getCategory = (name: string) => {
-     if (name.includes('GP')) return 'General Practice';
-     if (name.includes('GOPD')) return 'General OPD';
-     if (name.includes('MH') || name.includes('PSY')) return 'Mental Health';
-     if (name.includes('SPECIALIST') || name.includes('ROOM')) return 'Specialists';
-     return 'Main Services';
-  };
-
-  const filteredQueues = queues.filter(q => 
-    q.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    q.counterInfo.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredQueues = queues.filter(
+    (q) =>
+      q.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      q.counterInfo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      q.currentNumber.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const categories = Array.from(new Set(filteredQueues.map(q => getCategory(q.name)))).sort();
-  const activeTrackedQueue = queues.find(q => q.id === tracking?.queueId);
-  const activeSelectedQueue = queues.find(q => q.id === selectedQueue?.id) || selectedQueue;
+  const categories = Array.from(
+    new Set(filteredQueues.map((q) => getCategory(q.name, q.counterInfo)))
+  ).sort();
+
+  const activeTrackedQueue = queues.find((q) => q.id === tracking?.queueId);
+  const activeSelectedQueue = queues.find((q) => q.id === selectedQueue?.id) || selectedQueue;
 
   if (loading && queues.length === 0) {
     return (
-      <div className="space-y-8">
-        <div className="h-10 bg-slate-200 dark:bg-slate-800 rounded-xl w-48 animate-pulse"></div>
-        <div className="space-y-4">
-           {[1,2,3,4,5].map(i => (
-             <div key={i} className="h-20 bg-slate-100 dark:bg-slate-900 rounded-3xl animate-pulse"></div>
-           ))}
-        </div>
+      <div className="space-y-3 px-1">
+        <div className="h-8 bg-slate-200 dark:bg-slate-800 rounded-lg w-40 animate-pulse" />
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="h-16 bg-slate-100 dark:bg-slate-900 rounded-2xl animate-pulse" />
+        ))}
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
-      {/* Site Info Header */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-           <div className="flex items-center gap-2 px-3 py-1 bg-blue-600/10 rounded-full">
-              <span className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse"></span>
-              <span className="text-[10px] font-black uppercase tracking-widest text-blue-600">Live Scraped</span>
-           </div>
-           {loading && <Loader2 className="w-4 h-4 animate-spin text-blue-600" />}
-        </div>
-        
-        <h2 className="text-5xl font-black tracking-tighter uppercase leading-none">
-          {source === 'hmh' ? 'HMH' : 
-           source === 'vitalcare' ? 'VitalCare' : 
-           source === 'adk' ? 'ADK' :
-           source === 'igmh' ? 'IGMH' :
-           source === 'vilimale' ? 'Vilimale' :
-           source === 'dharumavantha' ? 'Dharumavantha' : source} <br />
-          <span className="text-slate-400">QUEUES.</span>
-        </h2>
-      </div>
-
-      {/* Search Input - Desktop/Mobile unified */}
-      <div className="relative group">
-        <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input 
-          type="text" 
-          placeholder="Search by specialty, doctor or ID..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 focus:border-blue-500/50 rounded-2xl py-4 pl-12 pr-6 outline-none transition-all font-bold text-sm"
-        />
-      </div>
-
-      {/* Categorized Counter List */}
-      <motion.div 
-        initial="hidden"
-        animate="show"
-        variants={{
-          hidden: { opacity: 0 },
-          show: { opacity: 1, transition: { staggerChildren: 0.05 } }
-        }}
-        className="space-y-10"
-      >
-        {categories.map(cat => (
-          <div key={cat} className="space-y-4">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-3">
-              {cat}
-              <div className="h-px flex-1 bg-slate-100 dark:bg-white/5"></div>
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-8">
-              {filteredQueues.filter(q => getCategory(q.name) === cat).map((queue) => {
-                const isTracked = tracking?.queueId === queue.id;
-                return (
-                  <motion.div
-                    layout
-                    variants={{
-                      hidden: { opacity: 0, scale: 0.9, y: 20 },
-                      show: { opacity: 1, scale: 1, y: 0, transition: { type: "spring", bounce: 0.4 } }
-                    }}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    key={queue.id}
-                    onClick={() => {
-                      setSelectedQueue(queue);
-                      setSetupTrackMode(false);
-                      setSetupToken('');
-                      setSetupRoomNumber('');
-                    }}
-                    className={`flex items-center justify-between p-4 rounded-3xl cursor-pointer transform-gpu ${
-                      isTracked 
-                      ? 'bg-blue-600 text-white shadow-xl shadow-blue-600/30 ring-4 ring-blue-500/10' 
-                      : 'bg-white dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 hover:border-blue-500/50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-4">
-                       <div className={`min-w-[4.5rem] px-3 h-12 rounded-2xl flex items-center justify-center font-black text-xl flex-shrink-0 ${
-                         isTracked ? 'bg-white/20' : 'bg-slate-100 dark:bg-white/5 text-blue-600'
-                       }`}>
-                         <motion.span
-                           key={queue.currentNumber}
-                           initial={{ scale: 1.5, opacity: 0.5, filter: 'brightness(2)' }}
-                           animate={{ scale: 1, opacity: 1, filter: 'brightness(1)' }}
-                           transition={{ duration: 0.6, type: 'spring', bounce: 0.6 }}
-                         >
-                           {queue.currentNumber}
-                         </motion.span>
-                       </div>
-                       <div>
-                          <h4 className="text-sm font-black uppercase tracking-tighter leading-none mb-1 line-clamp-1">{queue.name}</h4>
-                          <p className={`text-[10px] font-bold uppercase tracking-tight ${isTracked ? 'opacity-70' : 'text-slate-400'}`}>
-                             {queue.counterInfo || 'Active Counter'}
-                          </p>
-                       </div>
-                    </div>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                      isTracked ? 'bg-white/20' : 'text-slate-300'
-                    }`}>
-                       {isTracked ? <Bell className="w-4 h-4" /> : <ChevronRight className="w-5 h-5 opacity-50" />}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
+    <div className="space-y-4 pb-28 md:pb-8">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">Live</span>
           </div>
-        ))}
-      </motion.div>
+          <h2 className="text-2xl sm:text-4xl font-black tracking-tight uppercase">
+            {SITE_LABELS[source]}
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">{queues.length} active counters</p>
+        </div>
+        <button
+          onClick={() => { setLoading(true); fetchData(); }}
+          className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-white/5 flex items-center justify-center"
+          aria-label="Refresh"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
 
-      {/* Active Tracking Mini-Overlay (Mobile focus) */}
+      {error && (
+        <div className="flex items-start gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <p className="text-xs font-medium">{error}</p>
+        </div>
+      )}
+
+      {/* Search */}
+      <div className="sticky top-[4.25rem] z-20 -mx-1">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="search"
+            inputMode="search"
+            placeholder="Search counter, room, token..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-white dark:bg-[#111] border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-10 pr-4 text-sm font-medium outline-none focus:border-blue-500"
+          />
+        </div>
+      </div>
+
+      {filteredQueues.length === 0 ? (
+        <div className="text-center py-16 px-4">
+          <p className="text-slate-500 text-sm">No active queues right now.</p>
+          <p className="text-slate-400 text-xs mt-1">Counters appear when tokens are being served.</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {categories.map((cat) => (
+            <section key={cat}>
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 px-1">
+                {cat}
+              </h3>
+              <div className="space-y-2">
+                {filteredQueues
+                  .filter((q) => getCategory(q.name, q.counterInfo) === cat)
+                  .map((queue) => {
+                    const isTracked = tracking?.queueId === queue.id;
+                    return (
+                      <button
+                        key={queue.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedQueue(queue);
+                          setSetupTrackMode(false);
+                          setSetupToken('');
+                        }}
+                        className={`w-full flex items-center gap-3 p-3 rounded-2xl text-left transition-all active:scale-[0.98] ${
+                          isTracked
+                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                            : 'bg-white dark:bg-[#0d0d0d] border border-slate-200 dark:border-white/8'
+                        }`}
+                      >
+                        <div
+                          className={`min-w-[3.5rem] px-2 py-2 rounded-xl text-center font-black text-lg tabular-nums ${
+                            isTracked ? 'bg-white/20' : 'bg-blue-50 dark:bg-blue-500/10 text-blue-600'
+                          }`}
+                        >
+                          {queue.currentNumber}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-sm truncate">{queue.name}</p>
+                          <p className={`text-[10px] truncate ${isTracked ? 'opacity-80' : 'text-slate-400'}`}>
+                            {queue.counterInfo}
+                          </p>
+                        </div>
+                        {isTracked ? (
+                          <Bell className="w-4 h-4 shrink-0" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-slate-300 shrink-0" />
+                        )}
+                      </button>
+                    );
+                  })}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
+
+      {/* Active tracking bar */}
       <AnimatePresence>
-        {tracking && activeTrackedQueue && (
-          <motion.div 
-            initial={{ opacity: 0, y: 100 }}
+        {tracking && activeTrackedQueue && tracking.source === source && (
+          <motion.div
+            initial={{ opacity: 0, y: 80 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 100 }}
-            className="fixed bottom-24 md:bottom-10 left-4 right-4 z-[110] md:max-w-md md:left-auto md:right-10"
+            exit={{ opacity: 0, y: 80 }}
+            className="fixed bottom-[5.5rem] md:bottom-6 left-3 right-3 z-[90] max-w-lg md:left-auto md:right-6"
           >
-             <div className="bg-blue-600 text-white p-5 rounded-3xl shadow-2xl flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                   <div className="min-w-[4.5rem] px-2 h-14 bg-white/10 rounded-2xl flex flex-col items-center justify-center border border-white/20">
-                      <span className="text-[10px] font-black uppercase opacity-60">You</span>
-                      <span className="text-xl font-black">{tracking.myToken}</span>
-                   </div>
-                   <div>
-                      <h5 className="text-[10px] font-black uppercase tracking-widest opacity-70">Active Tracker</h5>
-                      <p className="font-black uppercase tracking-tighter text-lg leading-none">{activeTrackedQueue.name}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                         <Clock className="w-3 h-3 opacity-60" />
-                         <span className="text-[10px] font-bold">
-                           Serving <motion.span 
-                             key={activeTrackedQueue.currentNumber}
-                             initial={{ scale: 1.3, color: '#10b981' }}
-                             animate={{ scale: 1, color: '#ffffff' }}
-                             transition={{ duration: 0.6, type: 'spring', bounce: 0.6 }}
-                             className="inline-block"
-                           >
-                             {activeTrackedQueue.currentNumber}
-                           </motion.span>
-                         </span>
-                      </div>
-                   </div>
-                </div>
-                <button 
-                  onClick={clearTracking}
-                  className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center transition-colors hover:bg-white/30"
-                >
-                   <BellOff className="w-4 h-4" />
-                </button>
-             </div>
+            <div className="bg-blue-600 text-white p-4 rounded-2xl shadow-2xl flex items-center gap-3">
+              <div className="text-center px-2">
+                <p className="text-[9px] uppercase opacity-70 font-bold">You</p>
+                <p className="text-xl font-black tabular-nums">{tracking.myToken}</p>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] uppercase opacity-70 font-bold">Tracking</p>
+                <p className="font-bold text-sm truncate">{activeTrackedQueue.name}</p>
+                <p className="text-xs">
+                  Now: <span className="font-black tabular-nums">{activeTrackedQueue.currentNumber}</span>
+                </p>
+              </div>
+              <button
+                onClick={clearTracking}
+                className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center"
+              >
+                <BellOff className="w-4 h-4" />
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Queue Detail Overlay */}
+      {/* Detail sheet */}
       <AnimatePresence>
         {activeSelectedQueue && (
           <>
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 z-[150]"
               onClick={() => setSelectedQueue(null)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150]"
             />
-            <motion.div 
+            <motion.div
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed bottom-0 left-0 right-0 z-[200] bg-white dark:bg-[#0f0f0f] rounded-t-[3rem] px-8 pt-4 pb-12 shadow-2xl safe-bottom border-t border-slate-200 dark:border-white/5"
+              transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+              className="fixed bottom-0 left-0 right-0 z-[160] bg-white dark:bg-[#0a0a0a] rounded-t-3xl px-5 pt-3 pb-8 safe-bottom max-h-[85vh] overflow-y-auto"
             >
-              <div className="w-12 h-1.5 bg-slate-200 dark:bg-white/10 rounded-full mx-auto mb-8" />
-              
-              <div className="flex justify-between items-start mb-8">
-                 <div className="space-y-1">
-                    <h3 className="text-3xl font-black tracking-tighter uppercase leading-none">{activeSelectedQueue.name}</h3>
-                    <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">{activeSelectedQueue.counterInfo}</p>
-                 </div>
-                 <button 
+              <div className="w-10 h-1 bg-slate-200 dark:bg-white/10 rounded-full mx-auto mb-5" />
+              <div className="flex justify-between items-start mb-5">
+                <div className="min-w-0 pr-4">
+                  <h3 className="text-xl font-black leading-tight">{activeSelectedQueue.name}</h3>
+                  <p className="text-xs text-slate-500 mt-1">{activeSelectedQueue.counterInfo}</p>
+                </div>
+                <button
                   onClick={() => setSelectedQueue(null)}
-                  className="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center"
-                 >
-                   <X className="w-5 h-5" />
-                 </button>
+                  className="w-9 h-9 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 mb-10">
-                 <div className="p-6 rounded-[2rem] bg-blue-600 text-white flex flex-col items-center justify-center text-center">
-                    <span className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-2">Currently Serving</span>
-                    <motion.span 
-                      key={activeSelectedQueue.currentNumber}
-                      initial={{ scale: 1.3, opacity: 0.5, filter: 'brightness(2)' }}
-                      animate={{ scale: 1, opacity: 1, filter: 'brightness(1)' }}
-                      transition={{ duration: 0.6, type: 'spring', bounce: 0.6 }}
-                      className="text-4xl sm:text-5xl font-black tracking-tighter break-all"
-                    >
-                      {activeSelectedQueue.currentNumber}
-                    </motion.span>
-                 </div>
-                 <div className="p-6 rounded-[2rem] bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex flex-col items-center justify-center text-center">
-                    <History className="w-5 h-5 text-slate-400 mb-2" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Token History</span>
-                    <div className="flex flex-wrap gap-2 justify-center mt-2">
-                       {(historyMap[activeSelectedQueue.id] || []).slice(1).map((h, i) => (
-                         <span key={i} className="text-sm font-black opacity-40">{h}</span>
-                       ))}
-                       {(!historyMap[activeSelectedQueue.id] || historyMap[activeSelectedQueue.id].length <= 1) && (
-                         <span className="text-[10px] font-bold text-slate-400 opacity-50 uppercase tracking-tighter">Waiting for updates...</span>
-                       )}
+              <div className="grid grid-cols-2 gap-3 mb-5">
+                <div className="p-4 rounded-2xl bg-blue-600 text-white text-center">
+                  <p className="text-[10px] uppercase opacity-70 font-bold mb-1">Serving</p>
+                  <p className="text-3xl font-black tabular-nums">{activeSelectedQueue.currentNumber}</p>
+                </div>
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/5 text-center">
+                  <History className="w-4 h-4 mx-auto text-slate-400 mb-1" />
+                  <p className="text-[10px] uppercase text-slate-400 font-bold mb-1">Recent</p>
+                  <div className="flex flex-wrap gap-1 justify-center">
+                    {(historyMap[activeSelectedQueue.id] || []).slice(1, 4).map((h, i) => (
+                      <span key={i} className="text-xs font-bold text-slate-400 tabular-nums">{h}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {tracking?.queueId === activeSelectedQueue.id ? (
+                <button
+                  onClick={() => { clearTracking(); setSelectedQueue(null); }}
+                  className="w-full py-3.5 rounded-xl bg-slate-200 dark:bg-white/10 font-bold text-sm flex items-center justify-center gap-2"
+                >
+                  <BellOff className="w-4 h-4" /> Stop Alerts
+                </button>
+              ) : setupTrackMode ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Your token</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={setupToken}
+                      onChange={(e) => setSetupToken(e.target.value)}
+                      placeholder="e.g. 142"
+                      autoFocus
+                      className="w-full mt-1.5 px-4 py-3 rounded-xl border border-slate-200 dark:border-white/10 bg-transparent font-bold text-lg tabular-nums"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Alert when</label>
+                    <div className="grid grid-cols-4 gap-2 mt-1.5">
+                      {[1, 2, 3, 5].map((val) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setSetupThreshold(val)}
+                          className={`py-2.5 rounded-xl text-xs font-bold ${
+                            setupThreshold === val
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-slate-100 dark:bg-white/5 text-slate-500'
+                          }`}
+                        >
+                          {val} away
+                        </button>
+                      ))}
                     </div>
-                 </div>
-              </div>
-
-              <div className="space-y-4">
-                 {tracking?.queueId === activeSelectedQueue.id ? (
-                   <>
-                     <div className="flex items-center gap-3 p-4 rounded-2xl bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20">
-                        <Activity className="w-5 h-5 text-emerald-500" />
-                        <p className="text-xs font-bold text-emerald-500 uppercase tracking-widest leading-tight">Currently monitoring this counter for token {tracking.myToken}.</p>
-                     </div>
-                     <button 
-                       onClick={() => { clearTracking(); setSelectedQueue(null); }}
-                       className="w-full py-5 rounded-[2rem] bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-white font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2"
-                     >
-                       <BellOff className="w-4 h-4" /> Stop Tracking
-                     </button>
-                   </>
-                 ) : setupTrackMode ? (
-                   <motion.div 
-                     initial={{ opacity: 0, height: 0 }}
-                     animate={{ opacity: 1, height: 'auto' }}
-                     className="bg-slate-50 dark:bg-white/5 p-6 rounded-[2rem] border border-slate-200 dark:border-white/10 space-y-6"
-                   >
-                     <div>
-                       <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Your Token Number</label>
-                       <input 
-                         type="text" 
-                         value={setupToken}
-                         onChange={e => setSetupToken(e.target.value)}
-                         placeholder="e.g. 142"
-                         autoFocus
-                         className="w-full bg-white dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 outline-none focus:border-blue-500 font-bold text-sm"
-                       />
-                     </div>
-                     <div>
-                       <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Room Number (Optional)</label>
-                       <input 
-                         type="text" 
-                         value={setupRoomNumber}
-                         onChange={e => setSetupRoomNumber(e.target.value)}
-                         placeholder="e.g. Room 5"
-                         className="w-full bg-white dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 outline-none focus:border-blue-500 font-bold text-sm"
-                       />
-                       <p className="text-[9px] text-slate-400 mt-1">Leave empty to track all counters</p>
-                     </div>
-                     <div>
-                       <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Alert me when...</label>
-                       <div className="flex justify-between gap-2">
-                          {[1, 2, 3, 5].map(val => (
-                            <button
-                              key={val}
-                              onClick={() => setSetupThreshold(val)}
-                              className={`flex-1 py-3 rounded-xl font-black text-xs transition-all ${
-                                setupThreshold === val 
-                                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20' 
-                                : 'bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-400'
-                              }`}
-                            >
-                              {val} {val === 1 ? 'Wait' : 'Waits'}
-                            </button>
-                          ))}
-                       </div>
-                     </div>
-                     <div className="flex gap-3">
-                       <button 
-                         onClick={() => setSetupTrackMode(false)}
-                         className="flex-1 py-4 rounded-xl bg-slate-200 dark:bg-white/10 font-black uppercase tracking-widest text-xs text-slate-500 hover:text-slate-700 dark:hover:text-white"
-                       >
-                         Cancel
-                       </button>
-                       <button 
-                         onClick={handleSaveTracking}
-                         disabled={!setupToken}
-                         className="flex-[2] py-4 rounded-xl bg-blue-600 text-white font-black uppercase tracking-widest text-xs disabled:opacity-50 shadow-lg shadow-blue-600/20 active:scale-95 transition-transform"
-                       >
-                         Confirm Alerts
-                       </button>
-                     </div>
-                   </motion.div>
-                 ) : (
-                   <>
-                     <div className="flex items-center gap-3 p-4 rounded-2xl bg-blue-600/5 dark:bg-blue-600/10 border border-blue-600/10">
-                        <Bell className="w-5 h-5 text-blue-600" />
-                        <p className="text-xs font-bold text-slate-500 leading-tight">Track this counter to get notified when your token is near.</p>
-                     </div>
-                     <button 
-                       onClick={() => setSetupTrackMode(true)}
-                       className="w-full py-5 rounded-[2rem] bg-blue-600 text-white font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-xl shadow-blue-600/20 active:scale-[0.98] transition-transform"
-                     >
-                       <Bell className="w-4 h-4" /> Track My Token
-                     </button>
-                   </>
-                 )}
-              </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSetupTrackMode(false)}
+                      className="flex-1 py-3 rounded-xl bg-slate-100 dark:bg-white/5 font-bold text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveTracking}
+                      disabled={!setupToken}
+                      className="flex-[2] py-3 rounded-xl bg-blue-600 text-white font-bold text-sm disabled:opacity-40"
+                    >
+                      Enable Alerts
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setSetupTrackMode(true)}
+                  className="w-full py-3.5 rounded-xl bg-blue-600 text-white font-bold text-sm flex items-center justify-center gap-2"
+                >
+                  <Bell className="w-4 h-4" /> Track My Token
+                </button>
+              )}
             </motion.div>
           </>
         )}
