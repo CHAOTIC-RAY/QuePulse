@@ -1,5 +1,6 @@
 /// <reference lib="webworker" />
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
+import { apiUrl } from './lib/apiBase';
 
 declare let self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: Array<string | { url: string; revision: string | null }>;
@@ -16,7 +17,7 @@ type TrackingPayload = {
   notifyThreshold: number;
 };
 
-const API_MAP: Record<string, string> = {
+const API_PATHS: Record<string, string> = {
   hmh: '/api/hmh/queues',
   adk: '/api/adk/queues',
   vitalcare: '/api/vitalcare/tokens',
@@ -41,11 +42,11 @@ function parseToken(value: string): number | null {
 
 async function pollQueues() {
   if (!tracking) return;
-  const endpoint = API_MAP[tracking.source];
-  if (!endpoint) return;
+  const path = API_PATHS[tracking.source];
+  if (!path) return;
 
   try {
-    const res = await fetch(endpoint, { cache: 'no-store' });
+    const res = await fetch(apiUrl(path), { cache: 'no-store' });
     const queues = await res.json();
     if (!Array.isArray(queues)) return;
 

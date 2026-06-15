@@ -4,9 +4,10 @@
  */
 
 import { Queue, SiteSource } from '../types';
+import { apiUrl } from '../lib/apiBase';
 
-async function fetchQueues(endpoint: string): Promise<Queue[]> {
-  const response = await fetch(endpoint, { cache: 'no-store' });
+async function fetchQueues(path: string): Promise<Queue[]> {
+  const response = await fetch(apiUrl(path), { cache: 'no-store' });
   const data = await response.json();
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.queues)) return data.queues;

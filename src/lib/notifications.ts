@@ -1,4 +1,5 @@
 import { UserTracking, SiteSource, Queue } from '../types';
+import { apiUrl } from './apiBase';
 
 const ICON = '/icons/icon-192.png';
 
@@ -137,7 +138,7 @@ export function checkTrackingAlert(
   return evaluate(matched);
 }
 
-export const HOSPITAL_API: Record<SiteSource, string> = {
+const HOSPITAL_API_PATHS: Record<SiteSource, string> = {
   hmh: '/api/hmh/queues',
   adk: '/api/adk/queues',
   vitalcare: '/api/vitalcare/tokens',
@@ -148,3 +149,9 @@ export const HOSPITAL_API: Record<SiteSource, string> = {
   fah: '/api/fah/queues',
   shah: '/api/shah/queues',
 };
+
+export function getHospitalApiUrl(source: SiteSource): string {
+  return apiUrl(HOSPITAL_API_PATHS[source]);
+}
+
+export const HOSPITAL_API: Record<SiteSource, string> = HOSPITAL_API_PATHS;
