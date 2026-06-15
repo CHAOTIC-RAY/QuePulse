@@ -1,6 +1,6 @@
 import { UserTracking, SiteSource, Queue } from '../types';
 
-const ICON = '/icons/icon.svg';
+const ICON = '/icons/icon-192.png';
 
 export type NotificationState = 'unsupported' | 'default' | 'granted' | 'denied';
 

@@ -18,7 +18,7 @@ export function BottomNav({ activeTab, hasTracking, onHome, onHospitals, onAlert
   ];
 
   return (
-    <nav className="ios-nav md:hidden safe-bottom">
+    <nav className="ios-nav lg:hidden safe-bottom">
       <div className="ios-nav-pill">
         {items.map((item) => {
           const active = activeTab === item.id;

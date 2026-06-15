@@ -67,8 +67,8 @@ async function pollQueues() {
         tracking.isGlobal ? `Token near — ${q.name}` : 'Your turn is near!',
         {
           body: `Serving ${q.currentNumber} at ${q.name}. Your token: ${tracking.myToken}.`,
-          icon: '/icons/icon.svg',
-          badge: '/icons/icon.svg',
+          icon: '/icons/icon-192.png',
+          badge: '/icons/icon-192.png',
           tag: alertId,
           renotify: true,
           requireInteraction: true,

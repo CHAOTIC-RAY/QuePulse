@@ -242,8 +242,8 @@ export function TrackingHub({ isOpen, onClose, currentSource, tracking, onUpdate
                 </button>
               )}
 
-              <p className="text-[10px] text-[var(--muted)] leading-relaxed px-1">
-                Install QuePulse for background alerts. Android: install the APK or add to home screen. iPhone: Share → Add to Home Screen.
+              <p className="text-[10px] text-[var(--muted)] leading-relaxed px-1 hidden sm:block">
+                Install QuePulse for background alerts. Android: APK or home screen. iPhone: Share → Add to Home Screen.
               </p>
             </div>
           </motion.div>

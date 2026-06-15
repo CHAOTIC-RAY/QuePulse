@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-apk:
@@ -44,13 +44,43 @@ jobs:
       - name: Build debug APK
         run: cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon
 
+      - name: Prepare APK for release
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk quepulse.apk
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: quepulse-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: quepulse.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Delete previous latest-apk release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            try {
+              const rel = await github.rest.repos.getReleaseByTag({ owner, repo, tag: 'latest-apk' });
+              await github.rest.repos.deleteRelease({ owner, repo, release_id: rel.data.id });
+            } catch (e) { /* first run */ }
+            try {
+              await github.rest.git.deleteRef({ owner, repo, ref: 'tags/latest-apk' });
+            } catch (e) { /* ok */ }
+
+      - name: Publish GitHub Release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-apk
+          name: QuePulse Latest APK
+          body: |
+            Automated Android APK from the latest main branch build.
+            Download `quepulse.apk` or scan the QR code on the QuePulse desktop site.
+          files: quepulse.apk
+          make_latest: true
+          prerelease: false
 
   build-web:
     runs-on: ubuntu-latest
