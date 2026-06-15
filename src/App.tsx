@@ -14,6 +14,7 @@ import { addRecentHospital } from './lib/recentHospitals';
 import { Moon, Sun, Bell, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { registerServiceWorker, syncTrackingToServiceWorker } from './lib/notifications';
+import { useTrackingAlerts } from './hooks/useTrackingAlerts';
 import { useTheme } from './hooks/useTheme';
 import { useIsMobile } from './hooks/useMediaQuery';
 import { useMobileNavigation } from './hooks/useMobileNavigation';
@@ -60,6 +61,8 @@ export default function App() {
   useEffect(() => {
     registerServiceWorker();
   }, []);
+
+  useTrackingAlerts(tracking);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);

@@ -1,16 +1,63 @@
+import { LocalNotifications } from '@capacitor/local-notifications';
 import { UserTracking, SiteSource, Queue } from '../types';
 import { apiUrl } from './apiBase';
+import { isNativeApp } from './platform';
+import { formatNowServing, extractRoomLabel } from './queueDisplay';
 
 const ICON = '/icons/icon-192.png';
+const ANDROID_CHANNEL_ID = 'queue-alerts';
+let nativeChannelReady = false;
 
 export type NotificationState = 'unsupported' | 'default' | 'granted' | 'denied';
 
+function mapNativePermission(display: string | undefined): NotificationState {
+  if (display === 'granted') return 'granted';
+  if (display === 'denied') return 'denied';
+  return 'default';
+}
+
+async function ensureNativeChannel(): Promise<void> {
+  if (!isNativeApp() || nativeChannelReady) return;
+  await LocalNotifications.createChannel({
+    id: ANDROID_CHANNEL_ID,
+    name: 'Queue alerts',
+    description: 'Alerts when your hospital token is near',
+    importance: 5,
+    visibility: 1,
+    vibration: true,
+    sound: 'default',
+  });
+  nativeChannelReady = true;
+}
+
+function notificationIdFromTag(tag: string): number {
+  let hash = 0;
+  for (let i = 0; i < tag.length; i++) {
+    hash = (hash << 5) - hash + tag.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash) % 2_000_000_000 || 1;
+}
+
 export function getNotificationState(): NotificationState {
+  if (isNativeApp()) return 'default';
   if (!('Notification' in window)) return 'unsupported';
   return Notification.permission as NotificationState;
 }
 
+export async function refreshNotificationState(): Promise<NotificationState> {
+  if (isNativeApp()) {
+    const { display } = await LocalNotifications.checkPermissions();
+    return mapNativePermission(display);
+  }
+  return getNotificationState();
+}
+
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+  if (isNativeApp()) {
+    await ensureNativeChannel();
+    return null;
+  }
   if (!('serviceWorker' in navigator)) return null;
   try {
     const { registerSW } = await import('virtual:pwa-register');
@@ -22,10 +69,42 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
 }
 
 export async function requestNotificationPermission(): Promise<NotificationState> {
+  if (isNativeApp()) {
+    await ensureNativeChannel();
+    const { display } = await LocalNotifications.requestPermissions();
+    return mapNativePermission(display);
+  }
   if (!('Notification' in window)) return 'unsupported';
   const result = await Notification.requestPermission();
   await registerServiceWorker();
   return result as NotificationState;
+}
+
+async function showNativeAlert(
+  title: string,
+  body: string,
+  options?: { tag?: string; url?: string }
+): Promise<boolean> {
+  const tag = options?.tag || `quepulse-${Date.now()}`;
+  try {
+    await LocalNotifications.schedule({
+      notifications: [
+        {
+          id: notificationIdFromTag(tag),
+          title,
+          body,
+          channelId: ANDROID_CHANNEL_ID,
+          smallIcon: 'ic_stat_icon',
+          iconColor: '#2563eb',
+          schedule: { at: new Date(Date.now() + 250) },
+          extra: { url: options?.url || '/' },
+        },
+      ],
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function showAlert(
@@ -33,6 +112,12 @@ export async function showAlert(
   body: string,
   options?: { tag?: string; url?: string }
 ): Promise<boolean> {
+  if (isNativeApp()) {
+    const state = await refreshNotificationState();
+    if (state !== 'granted') return false;
+    return showNativeAlert(title, body, options);
+  }
+
   if (Notification.permission !== 'granted') return false;
 
   const payload = {
@@ -65,6 +150,27 @@ export async function showAlert(
 }
 
 export async function testNotification(): Promise<{ ok: boolean; message: string }> {
+  if (isNativeApp()) {
+    const state = await refreshNotificationState();
+    if (state === 'denied') {
+      return { ok: false, message: 'Notifications blocked. Enable them in Android settings.' };
+    }
+    if (state !== 'granted') {
+      const perm = await requestNotificationPermission();
+      if (perm !== 'granted') {
+        return { ok: false, message: 'Permission denied. Allow notifications to get queue alerts.' };
+      }
+    }
+    const sent = await showAlert(
+      'QuePulse Test',
+      'Alerts are working! You will be notified when your token is near.',
+      { tag: 'quepulse-test' }
+    );
+    return sent
+      ? { ok: true, message: 'Test notification sent!' }
+      : { ok: false, message: 'Could not display notification.' };
+  }
+
   const state = getNotificationState();
   if (state === 'unsupported') {
     return { ok: false, message: 'Notifications not supported on this device.' };
@@ -87,7 +193,7 @@ export async function testNotification(): Promise<{ ok: boolean; message: string
 }
 
 export function syncTrackingToServiceWorker(tracking: UserTracking | null) {
-  if (!navigator.serviceWorker?.controller) return;
+  if (isNativeApp() || !navigator.serviceWorker?.controller) return;
   navigator.serviceWorker.controller.postMessage({
     type: 'SYNC_TRACKING',
     tracking,
@@ -116,11 +222,12 @@ export function checkTrackingAlert(
     if (diff < 0 || diff > tracking.notifyThreshold) return null;
     const alertId = `${tracking.isGlobal ? 'global' : tracking.queueId}-${q.id}-${q.currentNumber}`;
     if (alertId === lastAlertId) return null;
+    const serving = formatNowServing(q);
     return {
       shouldAlert: true,
       alertId,
-      title: tracking.isGlobal ? `Token near at ${q.name}` : `Your turn is near!`,
-      body: `Now serving ${q.currentNumber} at ${q.name}. Your token: ${tracking.myToken}.`,
+      title: tracking.isGlobal ? `Token near — ${extractRoomLabel(q)}` : 'Your turn is near!',
+      body: `Now serving ${serving}. Your token: ${tracking.myToken}.`,
       queueName: q.name,
     };
   };

@@ -171,7 +171,7 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
               <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">Live</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black tracking-tight truncate">{hospital.name}</h2>
-            <p className="text-xs text-[var(--muted)]">{queues.length} active counters</p>
+            <p className="text-xs text-[var(--muted)]">{hospital.location}</p>
           </div>
         </div>
         <button

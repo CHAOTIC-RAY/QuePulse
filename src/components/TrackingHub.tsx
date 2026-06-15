@@ -5,6 +5,7 @@ import { SiteSource, UserTracking } from '../types';
 import { HOSPITALS } from '../data/hospitals';
 import {
   getNotificationState,
+  refreshNotificationState,
   requestNotificationPermission,
   testNotification,
   syncTrackingToServiceWorker,
@@ -33,7 +34,9 @@ export function TrackingHub({ isOpen, onClose, currentSource, tracking, onUpdate
   }, [currentSource]);
 
   useEffect(() => {
-    if (isOpen) setPermState(getNotificationState());
+    if (isOpen) {
+      refreshNotificationState().then(setPermState);
+    }
   }, [isOpen]);
 
   const updateThreshold = (val: number) => {
@@ -78,7 +81,7 @@ export function TrackingHub({ isOpen, onClose, currentSource, tracking, onUpdate
   const runTest = async () => {
     const result = await testNotification();
     setNotifMessage({ text: result.message, type: result.ok ? 'success' : 'error' });
-    setPermState(getNotificationState());
+    setPermState(await refreshNotificationState());
     setTimeout(() => setNotifMessage(null), 5000);
   };
 

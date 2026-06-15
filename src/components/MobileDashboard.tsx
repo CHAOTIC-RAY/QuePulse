@@ -11,7 +11,7 @@ import {
   Sun,
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
-import { SiteSource, UserTracking } from '../types';
+import { SiteSource, UserTracking, Queue } from '../types';
 import { HOSPITALS, HOSPITAL_MAP } from '../data/hospitals';
 import { getRecentHospitals } from '../lib/recentHospitals';
 import { queueService } from '../services/queueService';
@@ -19,6 +19,8 @@ import {
   requestNotificationPermission,
   syncTrackingToServiceWorker,
 } from '../lib/notifications';
+import { recordQueueTimestamps, getRoomEtaText } from '../lib/queueTiming';
+import { formatNowServing } from '../lib/queueDisplay';
 import { BrandLogo } from './BrandLogo';
 import { useTheme } from '../hooks/useTheme';
 
@@ -39,9 +41,9 @@ export function MobileDashboard({
 }: MobileDashboardProps) {
   const { isDark, toggle } = useTheme();
   const [recent, setRecent] = useState<SiteSource[]>(() => getRecentHospitals());
-  const [serving, setServing] = useState<string | null>(null);
-  const [featuredServing, setFeaturedServing] = useState<string | null>(null);
-  const [featuredCounters, setFeaturedCounters] = useState<number | null>(null);
+  const [servingQueue, setServingQueue] = useState<Queue | null>(null);
+  const [featuredQueue, setFeaturedQueue] = useState<Queue | null>(null);
+  const [featuredEta, setFeaturedEta] = useState<string | null>(null);
   const [featuredLoading, setFeaturedLoading] = useState(false);
   const [tokenInput, setTokenInput] = useState('');
   const [alertHospital, setAlertHospital] = useState<SiteSource>('hmh');
@@ -64,7 +66,7 @@ export function MobileDashboard({
 
   useEffect(() => {
     if (!tracking) {
-      setServing(null);
+      setServingQueue(null);
       return;
     }
     let mounted = true;
@@ -75,9 +77,9 @@ export function MobileDashboard({
         const match = tracking.queueId
           ? queues.find((q) => q.id === tracking.queueId)
           : queues[0];
-        setServing(match?.currentNumber ?? null);
+        setServingQueue(match ?? null);
       } catch {
-        if (mounted) setServing(null);
+        if (mounted) setServingQueue(null);
       }
     };
     load();
@@ -95,12 +97,14 @@ export function MobileDashboard({
       try {
         const queues = await queueService.getQueuesForSource(featuredId);
         if (!mounted) return;
-        setFeaturedCounters(queues.length);
-        setFeaturedServing(queues[0]?.currentNumber ?? null);
+        recordQueueTimestamps(queues);
+        const lead = queues[0] ?? null;
+        setFeaturedQueue(lead);
+        setFeaturedEta(lead ? getRoomEtaText(lead.id) : null);
       } catch {
         if (mounted) {
-          setFeaturedCounters(null);
-          setFeaturedServing(null);
+          setFeaturedQueue(null);
+          setFeaturedEta(null);
         }
       } finally {
         if (mounted) setFeaturedLoading(false);
@@ -201,14 +205,14 @@ export function MobileDashboard({
               <div className="grid grid-cols-2 gap-3">
                 <div className="dash-stat-pill">
                   <p className="dash-stat-label">Now serving</p>
-                  <p className="dash-stat-value text-[var(--primary)]">
-                    {featuredLoading ? '…' : featuredServing ?? '—'}
+                  <p className="dash-stat-value text-[var(--primary)] text-base leading-tight">
+                    {featuredLoading ? '…' : formatNowServing(featuredQueue)}
                   </p>
                 </div>
                 <div className="dash-stat-pill">
-                  <p className="dash-stat-label">Active counters</p>
-                  <p className="dash-stat-value">
-                    {featuredLoading ? '…' : featuredCounters ?? '—'}
+                  <p className="dash-stat-label">Room ETA</p>
+                  <p className="dash-stat-value text-base leading-tight">
+                    {featuredLoading ? '…' : featuredEta ?? '—'}
                   </p>
                 </div>
               </div>
@@ -255,7 +259,9 @@ export function MobileDashboard({
                   </p>
                   <p className="text-sm opacity-85 leading-relaxed">
                     Now serving{' '}
-                    <span className="font-black tabular-nums">{serving ?? '…'}</span>
+                    <span className="font-black tabular-nums">
+                      {formatNowServing(servingQueue)}
+                    </span>
                   </p>
                 </div>
                 <ChevronRight className="w-5 h-5 opacity-75 shrink-0" />

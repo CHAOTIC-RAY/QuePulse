@@ -32,7 +32,7 @@ async function writeTransparentLogo(logo) {
 }
 
 /** White rounded-square app icon (PWA install, favicon, notifications) */
-async function composeAppIcon(logo, size, logoScale = 0.72, cornerRadius = 0.2) {
+async function composeAppIcon(logo, size, logoScale = 0.58, cornerRadius = 0.2) {
   const logoSize = Math.round(size * logoScale);
   const pad = Math.round((size - logoSize) / 2);
   const mark = await sharp(logo)
@@ -53,7 +53,7 @@ async function composeAppIcon(logo, size, logoScale = 0.72, cornerRadius = 0.2) 
 async function writeAppIcons(logo) {
   const icon192 = await composeAppIcon(logo, 192);
   const icon512 = await composeAppIcon(logo, 512);
-  const maskable512 = await composeAppIcon(logo, 512, 0.6, 0.18);
+  const maskable512 = await composeAppIcon(logo, 512, 0.52, 0.18);
 
   await sharp(icon192).toFile(join(dir, 'icon-192.png'));
   await sharp(icon512).toFile(join(dir, 'icon-512.png'));
@@ -74,14 +74,14 @@ async function writeAndroidIcons(logo) {
   for (const [folder, size] of Object.entries(densities)) {
     const outDir = join(androidRes, folder);
     mkdirSync(outDir, { recursive: true });
-    const buf = await composeAppIcon(logo, size, 0.72, 0.2);
+    const buf = await composeAppIcon(logo, size, 0.58, 0.2);
     for (const name of ['ic_launcher.png', 'ic_launcher_round.png']) {
       await sharp(buf).toFile(join(outDir, name));
     }
   }
 
   const fgSize = 432;
-  const logoSize = Math.round(fgSize * 0.58);
+  const logoSize = Math.round(fgSize * 0.5);
   const pad = Math.round((fgSize - logoSize) / 2);
   const fgMark = await sharp(logo)
     .resize(logoSize, logoSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
@@ -106,10 +106,41 @@ async function writeAndroidIcons(logo) {
   }
 }
 
+/** Monochrome white icon for Android notification tray */
+async function writeNotificationIcon(logo) {
+  const outDir = join(androidRes, 'drawable');
+  mkdirSync(outDir, { recursive: true });
+  const size = 96;
+  const logoSize = Math.round(size * 0.68);
+  const pad = Math.round((size - logoSize) / 2);
+
+  const alphaMask = await sharp(logo)
+    .resize(logoSize, logoSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .ensureAlpha()
+    .extractChannel('alpha')
+    .png()
+    .toBuffer();
+
+  const whiteLogo = await sharp({
+    create: { width: logoSize, height: logoSize, channels: 3, background: '#ffffff' },
+  })
+    .joinChannel(alphaMask)
+    .png()
+    .toBuffer();
+
+  await sharp({
+    create: { width: size, height: size, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+  })
+    .composite([{ input: whiteLogo, top: pad, left: pad }])
+    .png()
+    .toFile(join(outDir, 'ic_stat_icon.png'));
+}
+
 const logo = await getLogoBuffer();
 
 await writeTransparentLogo(logo);
 await writeAppIcons(logo);
 await writeAndroidIcons(logo);
+await writeNotificationIcon(logo);
 
 console.log('Icons generated from public/icons/logo-source.png');
