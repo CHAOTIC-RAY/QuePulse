@@ -144,7 +144,7 @@ export function MobileDashboard({
       <header className="dash-top safe-top flex items-center justify-between gap-3 mb-5">
         <div className="min-w-0">
           <p className="text-sm text-[var(--muted)] font-medium">{getGreeting()}</p>
-          <BrandLogo size="mobile" className="mt-1" />
+          <BrandLogo size="mobile" variant="muted" className="mt-1" />
         </div>
         <button
           type="button"

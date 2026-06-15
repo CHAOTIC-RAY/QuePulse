@@ -300,6 +300,15 @@
   padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
 }
 
+.brand-logo-muted {
+  opacity: 0.9;
+  filter: grayscale(1) brightness(1.25);
+}
+
+:root.dark .brand-logo-muted {
+  filter: grayscale(1) brightness(1.6);
+}
+
 .dash-section-label {
   @apply text-[11px] font-bold uppercase tracking-widest text-[var(--muted)];
 }
