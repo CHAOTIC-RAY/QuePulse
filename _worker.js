@@ -35,6 +35,34 @@ function isActiveToken(token) {
   return t !== '' && t !== '-' && t !== 'N/A' && t !== 'CLOSED' && t !== '0';
 }
 
+function formatHMHDeptItem(item) {
+  const label = String(item.RoomLabel || 'Counter');
+  const upper = label.toUpperCase();
+  const isPriority = item.Pq === '1' || item.Pq === 1 || item.Pq === true;
+
+  let dept = 'General';
+  if (/GOPD/.test(upper)) dept = 'GOPD';
+  else if (/\bGP\b/.test(upper)) dept = 'GP';
+  else if (/ER|EMERGENCY/.test(upper)) dept = 'Emergency';
+  else if (/MEMO|REGISTRATION/.test(upper)) dept = 'Registration';
+  else if (/LAB|X-?RAY|ULTRASOUND|RADIOLOGY/.test(upper)) dept = 'Diagnostics';
+
+  const roomMatch = label.match(/ROOM\s+([A-Z0-9]+)/i);
+  const roomRef = roomMatch ? roomMatch[1] : String(item.RoomID);
+
+  return {
+    id: `hmh-${item.RoomID}`,
+    name: label,
+    prefix: '',
+    currentNumber: String(item.TokenNo),
+    counterInfo: isPriority
+      ? `Priority · ${dept} · Room ${roomRef}`
+      : `${dept} · Room ${roomRef}`,
+    isPriority,
+    lastUpdated: item.CalledOn || new Date().toISOString(),
+  };
+}
+
 async function getQueueBeeCreds() {
   if (queuebeeCreds && Date.now() - queuebeeCredsAt < 3600000) return queuebeeCreds;
   const resp = await fetch(`${QUEUEBEE.base}${QUEUEBEE.configPath}`, { headers: SCRAPE_HEADERS });
@@ -124,14 +152,7 @@ async function scrapeHMH() {
   if (deptData?.success && Array.isArray(deptData.data)) {
     for (const item of deptData.data) {
       if (!isActiveToken(item.TokenNo)) continue;
-      queues.push({
-        id: `hmh-${item.RoomID}`,
-        name: item.RoomLabel,
-        prefix: '',
-        currentNumber: String(item.TokenNo),
-        counterInfo: item.Pq === '1' ? 'Priority' : 'Live',
-        lastUpdated: item.CalledOn || new Date().toISOString(),
-      });
+      queues.push(formatHMHDeptItem(item));
     }
   }
 
@@ -145,7 +166,8 @@ async function scrapeHMH() {
         name: item.RoomLabel || item.name || 'Lab Service',
         prefix: '',
         currentNumber: String(token),
-        counterInfo: 'Services',
+        counterInfo: 'Diagnostics · Lab',
+        isPriority: false,
         lastUpdated: new Date().toISOString(),
       });
     }

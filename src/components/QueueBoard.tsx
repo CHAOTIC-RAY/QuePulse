@@ -1,11 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Loader2, Bell, BellOff, Search, ChevronRight, History, X, RefreshCw, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { Loader2, Bell, BellOff, Search, ChevronRight, History, X, RefreshCw, AlertTriangle, ArrowLeft, Clock, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { queueService } from '../services/queueService';
 import { SiteSource, Queue, UserTracking } from '../types';
 import { HOSPITAL_MAP } from '../data/hospitals';
 import { CategoryChips } from './CategoryChips';
-import { getQueueCategory, QueueCategory } from '../lib/categories';
+import { getQueueCategory, sortCategories, QueueCategory } from '../lib/categories';
+import {
+  recordQueueTimestamps,
+  enrichQueuesWithPriority,
+  getRoomEtaText,
+  getWaitEtaText,
+} from '../lib/queueTiming';
 import {
   checkTrackingAlert,
   requestNotificationPermission,
@@ -48,22 +54,10 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
     setError(null);
     try {
       const data = await queueService.getQueuesForSource(source);
-
-      setHistoryMap((prev) => {
-        const newMap = { ...prev };
-        let changed = false;
-        data.forEach((q) => {
-          const currentHistory = newMap[q.id] || [];
-          if (currentHistory[0] !== q.currentNumber) {
-            newMap[q.id] = [q.currentNumber, ...currentHistory].slice(0, 5);
-            changed = true;
-          }
-        });
-        if (changed) localStorage.setItem('mv_queue_history', JSON.stringify(newMap));
-        return changed ? newMap : prev;
-      });
-
-      setQueues(data);
+      const tokenHistory = recordQueueTimestamps(data);
+      const enriched = enrichQueuesWithPriority(data, tokenHistory);
+      setHistoryMap(tokenHistory);
+      setQueues(enriched);
 
       if (tracking && tracking.source === source) {
         const alert = checkTrackingAlert(tracking, data, lastNotificationRef.current);
@@ -120,20 +114,22 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
       q.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       q.counterInfo.toLowerCase().includes(searchTerm.toLowerCase()) ||
       q.currentNumber.toLowerCase().includes(searchTerm.toLowerCase());
-    const cat = getQueueCategory(q.name, q.counterInfo);
+    const cat = getQueueCategory(q.name, q.counterInfo, source);
     const matchesCategory = category === 'All' || cat === category;
     return matchesSearch && matchesCategory;
   });
 
-  const availableCategories = Array.from(
-    new Set(queues.map((q) => getQueueCategory(q.name, q.counterInfo)))
-  ).sort() as Exclude<QueueCategory, 'All'>[];
+  const availableCategories = sortCategories(
+    Array.from(
+      new Set(queues.map((q) => getQueueCategory(q.name, q.counterInfo, source)))
+    ) as Exclude<QueueCategory, 'All'>[]
+  );
 
   const grouped = availableCategories
     .filter((cat) => category === 'All' || cat === category)
     .map((cat) => ({
       cat,
-      items: filteredQueues.filter((q) => getQueueCategory(q.name, q.counterInfo) === cat),
+      items: filteredQueues.filter((q) => getQueueCategory(q.name, q.counterInfo, source) === cat),
     }))
     .filter((g) => g.items.length > 0);
 
@@ -200,7 +196,7 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
         </div>
       )}
 
-      <div className="sticky top-[4.25rem] z-20 space-y-2.5 -mx-1">
+      <div className="sticky top-0 lg:top-[4.25rem] z-20 space-y-2.5 -mx-1 pt-1">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted)]" />
           <input
@@ -239,6 +235,7 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
               <div className="space-y-2">
                 {items.map((queue, i) => {
                   const isTracked = tracking?.queueId === queue.id;
+                  const roomEta = getRoomEtaText(queue.id);
                   return (
                     <motion.button
                       key={queue.id}
@@ -266,9 +263,21 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
                         {queue.currentNumber}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-sm truncate">{queue.name}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                          <p className="font-bold text-sm truncate">{queue.name}</p>
+                          {queue.isPriority && (
+                            <span className="priority-chip shrink-0">
+                              <Zap className="w-2.5 h-2.5" />
+                              Priority number
+                            </span>
+                          )}
+                        </div>
                         <p className={`text-[10px] truncate ${isTracked ? 'opacity-80' : 'text-[var(--muted)]'}`}>
                           {queue.counterInfo}
+                        </p>
+                        <p className={`text-[10px] mt-0.5 flex items-center gap-1 ${isTracked ? 'opacity-75' : 'text-[var(--primary)]'}`}>
+                          <Clock className="w-3 h-3 shrink-0" />
+                          {roomEta}
                         </p>
                       </div>
                       {isTracked ? (
@@ -303,6 +312,17 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
                 <p className="font-bold text-sm truncate">{activeTrackedQueue.name}</p>
                 <p className="text-xs">
                   Now: <span className="font-black tabular-nums">{activeTrackedQueue.currentNumber}</span>
+                  {tracking.myToken && (
+                    <span className="opacity-80">
+                      {' '}
+                      · ETA{' '}
+                      {getWaitEtaText(
+                        activeTrackedQueue.id,
+                        tracking.myToken,
+                        activeTrackedQueue.currentNumber
+                      )}
+                    </span>
+                  )}
                 </p>
               </div>
               <button
@@ -336,7 +356,15 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
               <div className="w-10 h-1 bg-[var(--border)] rounded-full mx-auto mb-5" />
               <div className="flex justify-between items-start mb-5">
                 <div className="min-w-0 pr-4">
-                  <h3 className="text-xl font-black leading-tight">{activeSelectedQueue.name}</h3>
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <h3 className="text-xl font-black leading-tight">{activeSelectedQueue.name}</h3>
+                    {activeSelectedQueue.isPriority && (
+                      <span className="priority-chip">
+                        <Zap className="w-2.5 h-2.5" />
+                        Priority number
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-[var(--muted)] mt-1">{activeSelectedQueue.counterInfo}</p>
                 </div>
                 <button
@@ -354,13 +382,35 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
                   <p className="text-3xl font-black tabular-nums">{activeSelectedQueue.currentNumber}</p>
                 </div>
                 <div className="p-4 rounded-2xl text-center border border-[var(--border)]" style={{ background: 'var(--surface)' }}>
-                  <History className="w-4 h-4 mx-auto text-[var(--muted)] mb-1" />
-                  <p className="text-[10px] uppercase text-[var(--muted)] font-bold mb-1">Recent</p>
-                  <div className="flex flex-wrap gap-1 justify-center">
-                    {(historyMap[activeSelectedQueue.id] || []).slice(1, 4).map((h, i) => (
-                      <span key={i} className="text-xs font-bold text-[var(--muted)] tabular-nums">{h}</span>
-                    ))}
-                  </div>
+                  <Clock className="w-4 h-4 mx-auto text-[var(--primary)] mb-1" />
+                  <p className="text-[10px] uppercase text-[var(--muted)] font-bold mb-1">Room pace</p>
+                  <p className="text-sm font-black text-[var(--primary)]">{getRoomEtaText(activeSelectedQueue.id)}</p>
+                </div>
+              </div>
+
+              {tracking?.queueId === activeSelectedQueue.id && tracking.myToken && (
+                <div className="mb-5 p-3 rounded-xl border border-[var(--border)] flex items-center gap-2" style={{ background: 'var(--surface)' }}>
+                  <Clock className="w-4 h-4 text-[var(--primary)] shrink-0" />
+                  <p className="text-sm">
+                    <span className="font-bold">Your wait: </span>
+                    {getWaitEtaText(
+                      activeSelectedQueue.id,
+                      tracking.myToken,
+                      activeSelectedQueue.currentNumber
+                    )}
+                  </p>
+                </div>
+              )}
+
+              <div className="mb-5 p-3 rounded-xl border border-[var(--border)]" style={{ background: 'var(--surface)' }}>
+                <History className="w-4 h-4 text-[var(--muted)] mb-1" />
+                <p className="text-[10px] uppercase text-[var(--muted)] font-bold mb-1">Recent tokens</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(historyMap[activeSelectedQueue.id] || []).slice(1, 5).map((h, i) => (
+                    <span key={i} className="text-xs font-bold text-[var(--muted)] tabular-nums px-2 py-0.5 rounded-lg border border-[var(--border)]">
+                      {h}
+                    </span>
+                  ))}
                 </div>
               </div>
 

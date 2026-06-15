@@ -33,6 +33,34 @@ function isActiveToken(token: unknown) {
   return t !== '' && t !== '-' && t !== 'N/A' && t !== 'CLOSED' && t !== '0';
 }
 
+function formatHMHDeptItem(item: Record<string, unknown>) {
+  const label = String(item.RoomLabel || 'Counter');
+  const upper = label.toUpperCase();
+  const isPriority = item.Pq === '1' || item.Pq === 1 || item.Pq === true;
+
+  let dept = 'General';
+  if (/GOPD/.test(upper)) dept = 'GOPD';
+  else if (/\bGP\b/.test(upper)) dept = 'GP';
+  else if (/ER|EMERGENCY/.test(upper)) dept = 'Emergency';
+  else if (/MEMO|REGISTRATION/.test(upper)) dept = 'Registration';
+  else if (/LAB|X-?RAY|ULTRASOUND|RADIOLOGY/.test(upper)) dept = 'Diagnostics';
+
+  const roomMatch = label.match(/ROOM\s+([A-Z0-9]+)/i);
+  const roomRef = roomMatch ? roomMatch[1] : String(item.RoomID);
+
+  return {
+    id: `hmh-${item.RoomID}`,
+    name: label,
+    prefix: '',
+    currentNumber: String(item.TokenNo),
+    counterInfo: isPriority
+      ? `Priority · ${dept} · Room ${roomRef}`
+      : `${dept} · Room ${roomRef}`,
+    isPriority,
+    lastUpdated: new Date(String(item.CalledOn || Date.now())),
+  };
+}
+
 async function getQueueBeeCreds() {
   if (queuebeeCreds && Date.now() - queuebeeCredsAt < 3600000) return queuebeeCreds;
   const resp = await fetch(`${QUEUEBEE.base}${QUEUEBEE.configPath}`, { headers: SCRAPE_HEADERS });
@@ -109,27 +137,23 @@ async function scrapeHMH() {
   const deptData = await deptResp.json();
   if (deptData?.success && Array.isArray(deptData.data)) {
     for (const item of deptData.data) {
-      queues.push({
-        id: `hmh-${item.RoomID}`,
-        name: item.RoomLabel,
-        prefix: '',
-        currentNumber: item.TokenNo,
-        counterInfo: item.Pq === '1' ? 'Priority' : 'Live',
-        lastUpdated: new Date(item.CalledOn),
-      });
+      if (!isActiveToken(item.TokenNo)) continue;
+      queues.push(formatHMHDeptItem(item));
     }
   }
 
   const labData = await labResp.json();
   if (Array.isArray(labData?.queues)) {
     for (const item of labData.queues) {
-      if (!item.currentToken && !item.TokenNo) continue;
+      const token = item.currentToken || item.TokenNo;
+      if (!isActiveToken(token)) continue;
       queues.push({
         id: `hmh-lab-${item.RoomID || item.id || item.RoomLabel}`,
         name: item.RoomLabel || item.name || 'Lab Service',
         prefix: '',
-        currentNumber: String(item.currentToken || item.TokenNo),
-        counterInfo: 'Services',
+        currentNumber: String(token),
+        counterInfo: 'Diagnostics · Lab',
+        isPriority: false,
         lastUpdated: new Date(),
       });
     }

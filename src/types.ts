@@ -11,6 +11,8 @@ export interface Queue {
   counterInfo: string;
   lastUpdated?: Date;
   history?: string[];
+  /** Set by scraper or detected when token jumps ahead */
+  isPriority?: boolean;
 }
 
 export type SiteSource =

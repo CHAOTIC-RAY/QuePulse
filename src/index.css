@@ -186,6 +186,19 @@
   background: rgba(16, 185, 129, 0.12);
 }
 
+.priority-chip {
+  @apply inline-flex items-center gap-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full;
+  color: #c2410c;
+  background: rgba(249, 115, 22, 0.15);
+  border: 1px solid rgba(249, 115, 22, 0.25);
+}
+
+:root.dark .priority-chip {
+  color: #fdba74;
+  background: rgba(249, 115, 22, 0.2);
+  border-color: rgba(251, 146, 60, 0.3);
+}
+
 .chip-scroll {
   @apply flex gap-2 overflow-x-auto pb-1;
   scrollbar-width: none;

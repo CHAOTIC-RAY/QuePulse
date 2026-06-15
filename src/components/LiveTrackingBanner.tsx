@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Clock, Activity, Users, ArrowRight } from 'lucide-react';
 import { UserTracking, Queue } from '../types';
 import { queueService } from '../services/queueService';
+import { getWaitEtaText } from '../lib/queueTiming';
 
 interface LiveTrackingBannerProps {
   tracking: UserTracking;
@@ -43,52 +44,7 @@ export function LiveTrackingBanner({ tracking }: LiveTrackingBannerProps) {
           if (!isNaN(current) && !isNaN(target)) {
             const left = target - current;
             setPatientsLeft(left >= 0 ? left : 0);
-            
-            // Calculate ETA based on history map with timestamps
-            const historyStr = localStorage.getItem('mv_queue_history_times');
-            if (historyStr) {
-               const historyMap = JSON.parse(historyStr);
-               const history = historyMap[matchedQueue.id] || [];
-               if (history.length >= 2) {
-                 // Try to calculate average time per patient
-                 let timeDiffs = [];
-                 let patientDiffs = [];
-                 for(let i=0; i<history.length - 1; i++) {
-                    const t1 = history[i].time;
-                    const t2 = history[i+1].time;
-                    const num1 = parseInt(history[i].token.replace(/\D/g, ''));
-                    const num2 = parseInt(history[i+1].token.replace(/\D/g, ''));
-                    if (!isNaN(num1) && !isNaN(num2) && num1 > num2) {
-                      timeDiffs.push(t1 - t2);
-                      patientDiffs.push(num1 - num2);
-                    }
-                 }
-                 
-                 if (timeDiffs.length > 0) {
-                    const totalTime = timeDiffs.reduce((a, b) => a + b, 0);
-                    const totalPatients = patientDiffs.reduce((a, b) => a + b, 0);
-                    const avgTimePerPatientMs = totalTime / totalPatients;
-                    
-                    if (left > 0) {
-                       const estimatedMs = left * avgTimePerPatientMs;
-                       const mins = Math.round(estimatedMs / 60000);
-                       if (mins < 1) {
-                         setEtaText('Less than a minute');
-                       } else {
-                         setEtaText(`~${mins} mins`);
-                       }
-                    } else {
-                       setEtaText('It is your turn!');
-                    }
-                 } else {
-                   setEtaText('Analyzing speed...');
-                 }
-               } else {
-                 setEtaText('Analyzing speed...');
-               }
-            } else {
-               setEtaText('Analyzing speed...');
-            }
+            setEtaText(getWaitEtaText(matchedQueue.id, tracking.myToken, matchedQueue.currentNumber));
           }
         }
       } catch (err) {
