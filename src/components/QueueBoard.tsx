@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Loader2, Bell, BellOff, Search, ChevronRight, History, X, RefreshCw, AlertTriangle, ArrowLeft, Clock, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { queueService } from '../services/queueService';
 import { SiteSource, Queue, UserTracking } from '../types';
 import { HOSPITAL_MAP } from '../data/hospitals';
 import { CategoryChips } from './CategoryChips';
@@ -12,14 +11,12 @@ import {
   getRoomEtaText,
   getWaitEtaText,
 } from '../lib/queueTiming';
-import { isNativeApp } from '../lib/platform';
 import {
-  checkTrackingAlert,
   requestNotificationPermission,
-  showAlert,
   syncTrackingToServiceWorker,
 } from '../lib/notifications';
 import { getAlwaysOnNotifications } from '../lib/alwaysOn';
+import { useQueuePolling } from '../hooks/useQueuePolling';
 
 interface QueueBoardProps {
   source: SiteSource;
@@ -30,12 +27,11 @@ interface QueueBoardProps {
 
 export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: QueueBoardProps) {
   const hospital = HOSPITAL_MAP[source];
+  const { queues: rawQueues, loading, error, refresh } = useQueuePolling(source);
   const [queues, setQueues] = useState<Queue[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [category, setCategory] = useState<QueueCategory>('All');
-  const [selectedQueue, setSelectedQueue] = useState<Queue | null>(null);
+  const [selectedQueueId, setSelectedQueueId] = useState<string | null>(null);
   const [setupTrackMode, setSetupTrackMode] = useState(false);
   const [setupToken, setSetupToken] = useState('');
   const [setupThreshold, setSetupThreshold] = useState(() => {
@@ -50,40 +46,22 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
     }
   });
 
-  const lastNotificationRef = useRef<string | null>(null);
-
-  const fetchData = useCallback(async () => {
-    setError(null);
-    try {
-      const data = await queueService.getQueuesForSource(source);
-      const tokenHistory = recordQueueTimestamps(data);
-      const enriched = enrichQueuesWithPriority(data, tokenHistory);
-      setHistoryMap(tokenHistory);
-      setQueues(enriched);
-
-      if (tracking && tracking.source === source && !isNativeApp()) {
-        const alert = checkTrackingAlert(tracking, data, lastNotificationRef.current);
-        if (alert) {
-          lastNotificationRef.current = alert.alertId;
-          await showAlert(alert.title, alert.body, { tag: alert.alertId });
-        }
-      }
-    } catch (e) {
-      console.error('Fetch error', e);
-      setError('Could not load live queues. Pull to refresh or try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, [source, tracking]);
-
   useEffect(() => {
-    setLoading(true);
     setCategory('All');
     setSearchTerm('');
-    fetchData();
-    const interval = setInterval(fetchData, 12000);
-    return () => clearInterval(interval);
-  }, [fetchData]);
+    setSelectedQueueId(null);
+  }, [source]);
+
+  useEffect(() => {
+    const tokenHistory = recordQueueTimestamps(rawQueues);
+    const enriched = enrichQueuesWithPriority(rawQueues, tokenHistory);
+    setHistoryMap(tokenHistory);
+    setQueues(enriched);
+
+    if (tracking && tracking.source === source) {
+      syncTrackingToServiceWorker(tracking);
+    }
+  }, [rawQueues, tracking, source]);
 
   const handleSaveTracking = async () => {
     if (!setupToken || !activeSelectedQueue) return;
@@ -102,14 +80,13 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
     syncTrackingToServiceWorker(next);
     localStorage.setItem('mv_queue_notify_threshold', setupThreshold.toString());
     setSetupTrackMode(false);
-    setSelectedQueue(null);
+    setSelectedQueueId(null);
     setSetupToken('');
   };
 
   const clearTracking = () => {
     onUpdateTracking(null);
     syncTrackingToServiceWorker(null);
-    lastNotificationRef.current = null;
   };
 
   const filteredQueues = queues.filter((q) => {
@@ -137,7 +114,9 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
     .filter((g) => g.items.length > 0);
 
   const activeTrackedQueue = queues.find((q) => q.id === tracking?.queueId);
-  const activeSelectedQueue = queues.find((q) => q.id === selectedQueue?.id) || selectedQueue;
+  const activeSelectedQueue = selectedQueueId
+    ? queues.find((q) => q.id === selectedQueueId) ?? null
+    : null;
 
   if (loading && queues.length === 0) {
     return (
@@ -178,10 +157,7 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
           </div>
         </div>
         <button
-          onClick={() => {
-            setLoading(true);
-            fetchData();
-          }}
+          onClick={() => void refresh()}
           className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border border-[var(--border)]"
           style={{ background: 'var(--surface)' }}
           aria-label="Refresh"
@@ -247,7 +223,7 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
                       transition={{ delay: i * 0.02 }}
                       type="button"
                       onClick={() => {
-                        setSelectedQueue(queue);
+                        setSelectedQueueId(queue.id);
                         setSetupTrackMode(false);
                         setSetupToken('');
                       }}
@@ -347,7 +323,7 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 bg-black/50 z-[150] backdrop-blur-sm"
-              onClick={() => setSelectedQueue(null)}
+              onClick={() => setSelectedQueueId(null)}
             />
             <motion.div
               initial={{ y: '100%' }}
@@ -371,7 +347,7 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
                   <p className="text-xs text-[var(--muted)] mt-1">{activeSelectedQueue.counterInfo}</p>
                 </div>
                 <button
-                  onClick={() => setSelectedQueue(null)}
+                  onClick={() => setSelectedQueueId(null)}
                   className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 border border-[var(--border)]"
                   style={{ background: 'var(--surface)' }}
                 >
@@ -421,7 +397,7 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
                 <button
                   onClick={() => {
                     clearTracking();
-                    setSelectedQueue(null);
+                    setSelectedQueueId(null);
                   }}
                   className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 border border-[var(--border)]"
                   style={{ background: 'var(--surface)' }}

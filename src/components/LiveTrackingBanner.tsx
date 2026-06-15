@@ -1,66 +1,42 @@
-import React, { useState, useEffect } from 'react';
+import { useMemo } from 'react';
 import { motion } from 'motion/react';
-import { Clock, Activity, Users, ArrowRight } from 'lucide-react';
-import { UserTracking, Queue } from '../types';
-import { queueService } from '../services/queueService';
+import { Clock, Activity, Users } from 'lucide-react';
+import { UserTracking } from '../types';
 import { getWaitEtaText } from '../lib/queueTiming';
+import { useQueuePolling } from '../hooks/useQueuePolling';
 
 interface LiveTrackingBannerProps {
   tracking: UserTracking;
 }
 
 export function LiveTrackingBanner({ tracking }: LiveTrackingBannerProps) {
-  const [queue, setQueue] = useState<Queue | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [etaText, setEtaText] = useState('Calculating...');
-  const [patientsLeft, setPatientsLeft] = useState<number | null>(null);
+  const { queues, loading } = useQueuePolling(tracking.source, 8_000);
 
-  useEffect(() => {
-    let mounted = true;
-    
-    const fetchStatus = async () => {
-      try {
-        const data = await queueService.getQueuesForSource(tracking.source);
-        
-        if (!mounted) return;
+  const { queue, patientsLeft, etaText } = useMemo(() => {
+    let matchedQueue = queues.find((q) => q.id === tracking.queueId);
+    if (!matchedQueue && tracking.isGlobal) {
+      matchedQueue = queues.find((q) => {
+        const current = parseInt(q.currentNumber.replace(/\D/g, ''), 10);
+        const target = parseInt(tracking.myToken.replace(/\D/g, ''), 10);
+        return !Number.isNaN(current) && !Number.isNaN(target) && current > 0;
+      });
+    }
 
-        let matchedQueue: Queue | undefined;
-        if (tracking.isGlobal) {
-          matchedQueue = data.find(q => {
-             const current = parseInt(q.currentNumber.replace(/\D/g, ''));
-             const target = parseInt(tracking.myToken.replace(/\D/g, ''));
-             return !isNaN(current) && !isNaN(target) && current > 0;
-          });
-        } else {
-          matchedQueue = data.find(q => q.id === tracking.queueId);
-        }
+    if (!matchedQueue) {
+      return { queue: null, patientsLeft: null as number | null, etaText: 'Calculating...' };
+    }
 
-        if (matchedQueue) {
-          setQueue(matchedQueue);
-          
-          const current = parseInt(matchedQueue.currentNumber.replace(/\D/g, ''));
-          const target = parseInt(tracking.myToken.replace(/\D/g, ''));
-          
-          if (!isNaN(current) && !isNaN(target)) {
-            const left = target - current;
-            setPatientsLeft(left >= 0 ? left : 0);
-            setEtaText(getWaitEtaText(matchedQueue.id, tracking.myToken, matchedQueue.currentNumber));
-          }
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
+    const current = parseInt(matchedQueue.currentNumber.replace(/\D/g, ''), 10);
+    const target = parseInt(tracking.myToken.replace(/\D/g, ''), 10);
+    const left =
+      !Number.isNaN(current) && !Number.isNaN(target) ? Math.max(target - current, 0) : null;
+
+    return {
+      queue: matchedQueue,
+      patientsLeft: left,
+      etaText: getWaitEtaText(matchedQueue.id, tracking.myToken, matchedQueue.currentNumber),
     };
-    
-    fetchStatus();
-    const intv = setInterval(fetchStatus, 10000);
-    return () => {
-      mounted = false;
-      clearInterval(intv);
-    };
-  }, [tracking]);
+  }, [queues, tracking]);
 
   if (loading && !queue) {
     return (

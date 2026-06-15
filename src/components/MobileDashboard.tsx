@@ -14,7 +14,6 @@ import type { CSSProperties } from 'react';
 import { SiteSource, UserTracking, Queue } from '../types';
 import { HOSPITALS, HOSPITAL_MAP } from '../data/hospitals';
 import { getRecentHospitals } from '../lib/recentHospitals';
-import { queueService } from '../services/queueService';
 import {
   requestNotificationPermission,
   syncTrackingToServiceWorker,
@@ -22,6 +21,7 @@ import {
 import { recordQueueTimestamps, getRoomEtaText } from '../lib/queueTiming';
 import { getServingParts } from '../lib/queueDisplay';
 import { getAlwaysOnNotifications } from '../lib/alwaysOn';
+import { useQueuePolling } from '../hooks/useQueuePolling';
 import { BrandLogo } from './BrandLogo';
 import { useTheme } from '../hooks/useTheme';
 
@@ -42,10 +42,6 @@ export function MobileDashboard({
 }: MobileDashboardProps) {
   const { isDark, toggle } = useTheme();
   const [recent, setRecent] = useState<SiteSource[]>(() => getRecentHospitals());
-  const [servingQueue, setServingQueue] = useState<Queue | null>(null);
-  const [featuredQueue, setFeaturedQueue] = useState<Queue | null>(null);
-  const [featuredEta, setFeaturedEta] = useState<string | null>(null);
-  const [featuredLoading, setFeaturedLoading] = useState(false);
   const [tokenInput, setTokenInput] = useState('');
   const [alertHospital, setAlertHospital] = useState<SiteSource>('hmh');
   const [threshold, setThreshold] = useState(() => {
@@ -60,64 +56,33 @@ export function MobileDashboard({
   const featuredId = recent[0] ?? HOSPITALS[0].id;
   const featured = HOSPITAL_MAP[featuredId];
 
+  const { queues: trackingQueues } = useQueuePolling(tracking?.source ?? null);
+  const { queues: featuredQueues, loading: featuredLoading } = useQueuePolling(featuredId, 12_000);
+
+  const servingQueue = useMemo(() => {
+    if (!tracking) return null;
+    if (tracking.queueId) {
+      return trackingQueues.find((q) => q.id === tracking.queueId) ?? null;
+    }
+    return trackingQueues[0] ?? null;
+  }, [tracking, trackingQueues]);
+
+  const { featuredQueue, featuredEta } = useMemo(() => {
+    if (featuredQueues.length === 0) {
+      return { featuredQueue: null as Queue | null, featuredEta: null as string | null };
+    }
+    recordQueueTimestamps(featuredQueues);
+    const lead = featuredQueues[0] ?? null;
+    return {
+      featuredQueue: lead,
+      featuredEta: lead ? getRoomEtaText(lead.id) : null,
+    };
+  }, [featuredQueues]);
+
   const otherHospitals = useMemo(
     () => HOSPITALS.filter((h) => h.id !== featuredId),
     [featuredId]
   );
-
-  useEffect(() => {
-    if (!tracking) {
-      setServingQueue(null);
-      return;
-    }
-    let mounted = true;
-    const load = async () => {
-      try {
-        const queues = await queueService.getQueuesForSource(tracking.source);
-        if (!mounted) return;
-        const match = tracking.queueId
-          ? queues.find((q) => q.id === tracking.queueId)
-          : queues[0];
-        setServingQueue(match ?? null);
-      } catch {
-        if (mounted) setServingQueue(null);
-      }
-    };
-    load();
-    const id = setInterval(load, 12000);
-    return () => {
-      mounted = false;
-      clearInterval(id);
-    };
-  }, [tracking]);
-
-  useEffect(() => {
-    let mounted = true;
-    const loadFeatured = async () => {
-      setFeaturedLoading(true);
-      try {
-        const queues = await queueService.getQueuesForSource(featuredId);
-        if (!mounted) return;
-        recordQueueTimestamps(queues);
-        const lead = queues[0] ?? null;
-        setFeaturedQueue(lead);
-        setFeaturedEta(lead ? getRoomEtaText(lead.id) : null);
-      } catch {
-        if (mounted) {
-          setFeaturedQueue(null);
-          setFeaturedEta(null);
-        }
-      } finally {
-        if (mounted) setFeaturedLoading(false);
-      }
-    };
-    loadFeatured();
-    const id = setInterval(loadFeatured, 15000);
-    return () => {
-      mounted = false;
-      clearInterval(id);
-    };
-  }, [featuredId]);
 
   const startQuickTrack = async () => {
     if (!tokenInput.trim()) return;

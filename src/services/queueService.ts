@@ -5,9 +5,14 @@
 
 import { Queue, SiteSource } from '../types';
 import { apiUrl } from '../lib/apiBase';
+import { isNativeApp } from '../lib/platform';
 
 async function fetchQueues(path: string): Promise<Queue[]> {
-  const response = await fetch(apiUrl(path), { cache: 'no-store' });
+  const base = apiUrl(path);
+  const url = isNativeApp()
+    ? `${base}${base.includes('?') ? '&' : '?'}_=${Date.now()}`
+    : base;
+  const response = await fetch(url, { cache: 'no-store' });
   const data = await response.json();
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.queues)) return data.queues;
