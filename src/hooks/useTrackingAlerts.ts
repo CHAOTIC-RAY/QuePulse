@@ -86,7 +86,6 @@ export function useTrackingAlerts(tracking: UserTracking | null) {
         mounted = false;
         stopPolling();
         listener.then((handle) => handle.remove());
-        clearTrackingNotification();
       };
     }
 

@@ -13,6 +13,7 @@ const ICON = '/icons/icon-192.png';
 const ANDROID_CHANNEL_ID = 'queue-alerts';
 const ANDROID_TRACKING_CHANNEL_ID = 'queue-tracking-live';
 export const TRACKING_STATUS_NOTIFICATION_ID = 10001;
+export const TEST_NOTIFICATION_ID = 10099;
 let nativeChannelReady = false;
 let trackingChannelReady = false;
 
@@ -47,7 +48,6 @@ async function ensureTrackingChannel(): Promise<void> {
     importance: 3,
     visibility: 1,
     vibration: false,
-    sound: undefined,
   });
   trackingChannelReady = true;
 }
@@ -107,28 +107,30 @@ export async function requestNotificationPermission(): Promise<NotificationState
 async function showNativeAlert(
   title: string,
   body: string,
-  options?: { tag?: string; url?: string }
+  options?: { tag?: string; url?: string; id?: number }
 ): Promise<boolean> {
   const tag = options?.tag || `quepulse-${Date.now()}`;
-  try {
-    await LocalNotifications.schedule({
-      notifications: [
-        {
-          id: notificationIdFromTag(tag),
-          title,
-          body,
-          channelId: ANDROID_CHANNEL_ID,
-          smallIcon: 'ic_stat_icon',
-          iconColor: '#2563eb',
-          schedule: { at: new Date() },
-          extra: { url: options?.url || '/' },
-        },
-      ],
-    });
-    return true;
-  } catch {
-    return false;
-  }
+  const id =
+    options?.id ??
+    (tag === 'quepulse-test' ? TEST_NOTIFICATION_ID : notificationIdFromTag(tag));
+
+  await ensureNativeChannel();
+
+  // Deliver immediately — do NOT set `schedule.at` (that uses exact alarms and often fails silently).
+  await LocalNotifications.schedule({
+    notifications: [
+      {
+        id,
+        title,
+        body,
+        channelId: ANDROID_CHANNEL_ID,
+        smallIcon: 'ic_stat_icon',
+        iconColor: '#2563eb',
+        extra: { url: options?.url || '/' },
+      },
+    ],
+  });
+  return true;
 }
 
 export async function updateTrackingNotification(
@@ -153,7 +155,6 @@ export async function updateTrackingNotification(
         iconColor: '#2563eb',
         ongoing: true,
         autoCancel: false,
-        schedule: { at: new Date() },
       },
     ],
   });
@@ -183,7 +184,12 @@ export async function showAlert(
   if (isNativeApp()) {
     const state = await refreshNotificationState();
     if (state !== 'granted') return false;
-    return showNativeAlert(title, body, options);
+    try {
+      return await showNativeAlert(title, body, options);
+    } catch (err) {
+      console.error('showAlert native failed', err);
+      return false;
+    }
   }
 
   if (Notification.permission !== 'granted') return false;
@@ -219,24 +225,28 @@ export async function showAlert(
 
 export async function testNotification(): Promise<{ ok: boolean; message: string }> {
   if (isNativeApp()) {
-    const state = await refreshNotificationState();
-    if (state === 'denied') {
-      return { ok: false, message: 'Notifications blocked. Enable them in Android settings.' };
-    }
-    if (state !== 'granted') {
-      const perm = await requestNotificationPermission();
-      if (perm !== 'granted') {
-        return { ok: false, message: 'Permission denied. Allow notifications to get queue alerts.' };
+    try {
+      const state = await refreshNotificationState();
+      if (state === 'denied') {
+        return { ok: false, message: 'Notifications blocked. Enable them in Android settings.' };
       }
+      if (state !== 'granted') {
+        const perm = await requestNotificationPermission();
+        if (perm !== 'granted') {
+          return { ok: false, message: 'Permission denied. Allow notifications to get queue alerts.' };
+        }
+      }
+
+      await showNativeAlert(
+        'QuePulse Test',
+        'Alerts are working! You will be notified when your token is near.',
+        { tag: 'quepulse-test', id: TEST_NOTIFICATION_ID }
+      );
+      return { ok: true, message: 'Test notification sent!' };
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      return { ok: false, message: `Could not display notification: ${detail}` };
     }
-    const sent = await showAlert(
-      'QuePulse Test',
-      'Alerts are working! You will be notified when your token is near.',
-      { tag: 'quepulse-test' }
-    );
-    return sent
-      ? { ok: true, message: 'Test notification sent!' }
-      : { ok: false, message: 'Could not display notification.' };
   }
 
   const state = getNotificationState();
