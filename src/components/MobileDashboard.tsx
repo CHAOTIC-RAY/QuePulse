@@ -9,7 +9,6 @@ import {
   Moon,
   Radio,
   Sun,
-  Zap,
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { SiteSource, UserTracking } from '../types';
@@ -29,13 +28,6 @@ interface MobileDashboardProps {
   onSelectSite: (site: SiteSource) => void;
   onOpenAlerts: () => void;
   recentVersion?: number;
-}
-
-function getGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
-  return 'Good evening';
 }
 
 export function MobileDashboard({
@@ -142,10 +134,7 @@ export function MobileDashboard({
   return (
     <div className="mobile-dash pb-2">
       <header className="dash-top safe-top flex items-center justify-between gap-3 mb-5">
-        <div className="min-w-0">
-          <p className="text-sm text-[var(--muted)] font-medium">{getGreeting()}</p>
-          <BrandLogo size="mobile" variant="muted" className="mt-1" />
-        </div>
+        <BrandLogo size="mobile" variant="plain" />
         <button
           type="button"
           onClick={toggle}
@@ -161,9 +150,9 @@ export function MobileDashboard({
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-          className="mb-5"
+          className="dash-section"
         >
-          <div className="flex items-center justify-between mb-2.5 px-0.5">
+          <div className="dash-section-header flex items-center justify-between">
             <p className="dash-section-label">Continue where you left off</p>
             {featured.live && (
               <span className="live-chip">
@@ -270,15 +259,13 @@ export function MobileDashboard({
         </motion.button>
       )}
 
-      <section className="dash-glass-card mb-6" aria-labelledby="quick-alert-heading">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="dash-action-icon">
-            <Zap className="w-4 h-4" />
-          </span>
-          <h2 id="quick-alert-heading" className="text-base font-bold">
+      <section className="dash-section" aria-labelledby="quick-alert-heading">
+        <div className="dash-section-header">
+          <h2 id="quick-alert-heading" className="dash-section-title">
             Quick alert
           </h2>
         </div>
+        <div className="dash-glass-card">
         <p className="text-sm text-[var(--muted)] mb-3">
           Enter your token and get notified when your turn is near.
         </p>
@@ -342,10 +329,11 @@ export function MobileDashboard({
         >
           <Bell className="w-4 h-4" /> Advanced alert settings
         </button>
+        </div>
       </section>
 
-      <section aria-labelledby="all-hospitals-heading">
-        <div className="flex items-center justify-between mb-3 px-0.5">
+      <section className="dash-section" aria-labelledby="all-hospitals-heading">
+        <div className="dash-section-header flex items-center justify-between">
           <h2 id="all-hospitals-heading" className="dash-section-title">
             All hospitals
           </h2>
