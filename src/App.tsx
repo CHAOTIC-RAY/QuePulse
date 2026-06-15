@@ -73,7 +73,7 @@ export default function App() {
         onUpdateTracking={updateTracking}
       />
 
-      <header className={`sticky top-0 z-50 safe-top ${isMobile ? 'mobile-header' : 'glass'}`}>
+      <header className={`sticky top-0 z-50 safe-top glass hidden lg:block`}>
         <div className="flex items-center justify-between h-12 lg:h-14 px-4 lg:px-8 w-full">
           {source ? (
             <button
@@ -82,18 +82,14 @@ export default function App() {
             >
               <ArrowLeft className="w-4 h-4" /> Back
             </button>
-          ) : isMobile ? (
-            <div className="pointer-events-none">
-              <BrandLogo size="mobile" />
-            </div>
           ) : (
             <button onClick={() => setSource(null)}>
               <BrandLogo size="md" />
             </button>
           )}
 
-          {!source && !isMobile && (
-            <span className="hidden lg:block text-sm font-semibold text-[var(--muted)]">
+          {!source && (
+            <span className="text-sm font-semibold text-[var(--muted)]">
               Select a hospital to view live queues
             </span>
           )}
@@ -106,20 +102,18 @@ export default function App() {
             >
               {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
-            {!isMobile && (
-              <button
-                onClick={() => setIsAlertsOpen(true)}
-                className={`w-9 h-9 rounded-xl flex items-center justify-center relative ${
-                  tracking ? 'brand-gradient text-white' : 'border border-transparent hover:border-[var(--border)]'
-                }`}
-                aria-label="Alerts"
-              >
-                <Bell className="w-4 h-4" />
-                {tracking && (
-                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-[var(--accent)] rounded-full border-2 border-[var(--glass-bg)]" />
-                )}
-              </button>
-            )}
+            <button
+              onClick={() => setIsAlertsOpen(true)}
+              className={`w-9 h-9 rounded-xl flex items-center justify-center relative ${
+                tracking ? 'brand-gradient text-white' : 'border border-transparent hover:border-[var(--border)]'
+              }`}
+              aria-label="Alerts"
+            >
+              <Bell className="w-4 h-4" />
+              {tracking && (
+                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-[var(--accent)] rounded-full border-2 border-[var(--glass-bg)]" />
+              )}
+            </button>
           </div>
         </div>
       </header>
@@ -127,7 +121,7 @@ export default function App() {
       <div className="flex-1 flex w-full min-h-0">
         <DesktopSidebar />
 
-        <main className="flex-1 w-full min-w-0 px-4 lg:px-8 pt-2 lg:pt-3 pb-28 lg:pb-8 max-w-3xl lg:max-w-none mx-auto lg:mx-0">
+        <main className="flex-1 w-full min-w-0 px-4 lg:px-8 pt-1 lg:pt-3 pb-28 lg:pb-8 max-w-3xl lg:max-w-none mx-auto lg:mx-0">
           <InstallBanner />
           <AnimatePresence mode="wait">
             {!source ? (
@@ -157,7 +151,12 @@ export default function App() {
                 transition={{ type: 'spring', stiffness: 320, damping: 30 }}
                 className="lg:max-w-4xl"
               >
-                <QueueBoard source={source} tracking={tracking} onUpdateTracking={updateTracking} />
+                <QueueBoard
+                  source={source}
+                  tracking={tracking}
+                  onUpdateTracking={updateTracking}
+                  onBack={isMobile ? () => setSource(null) : undefined}
+                />
               </motion.div>
             )}
           </AnimatePresence>
