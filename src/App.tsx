@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { LandingPage } from './components/LandingPage';
 import { QueueBoard } from './components/QueueBoard';
 import { TrackingHub } from './components/TrackingHub';
@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { registerServiceWorker, syncTrackingToServiceWorker } from './lib/notifications';
 import { useTheme } from './hooks/useTheme';
 import { useIsMobile } from './hooks/useMediaQuery';
+import { useMobileNavigation } from './hooks/useMobileNavigation';
 
 export default function App() {
   const [source, setSource] = useState<SiteSource | null>(null);
@@ -32,6 +33,30 @@ export default function App() {
     }
   });
 
+  const {
+    goBack,
+    navigateHome,
+    navigateHospitals,
+    navigateHospital,
+    openAlerts,
+    closeAlerts,
+  } = useMobileNavigation({
+    enabled: isMobile,
+    mobileScreen,
+    source,
+    isAlertsOpen,
+    setMobileScreen,
+    setSource,
+    setIsAlertsOpen,
+  });
+
+  const selectHospital = useCallback(
+    (nextSource: SiteSource) => {
+      navigateHospital(nextSource);
+    },
+    [navigateHospital]
+  );
+
   useEffect(() => {
     registerServiceWorker();
   }, []);
@@ -40,10 +65,10 @@ export default function App() {
     const urlParams = new URLSearchParams(window.location.search);
     const hospitalParam = urlParams.get('hospital');
     if (hospitalParam && LIVE_HOSPITAL_IDS.includes(hospitalParam as SiteSource)) {
-      setSource(hospitalParam as SiteSource);
+      selectHospital(hospitalParam as SiteSource);
       window.history.replaceState({}, '', window.location.pathname);
     }
-  }, []);
+  }, [selectHospital]);
 
   useEffect(() => {
     if (source) addRecentHospital(source);
@@ -61,13 +86,19 @@ export default function App() {
     syncTrackingToServiceWorker(newTracking);
   };
 
-  const activeTab = isAlertsOpen ? 'alerts' : source ? 'hospitals' : mobileScreen === 'hospitals' ? 'hospitals' : 'home';
+  const activeTab = isAlertsOpen
+    ? 'alerts'
+    : source
+      ? 'hospitals'
+      : mobileScreen === 'hospitals'
+        ? 'hospitals'
+        : 'home';
 
   return (
     <div className="min-h-[100dvh] flex flex-col">
       <TrackingHub
         isOpen={isAlertsOpen}
-        onClose={() => setIsAlertsOpen(false)}
+        onClose={closeAlerts}
         currentSource={source}
         tracking={tracking}
         onUpdateTracking={updateTracking}
@@ -134,11 +165,11 @@ export default function App() {
               >
                 {!isMobile && tracking && <LiveTrackingBanner tracking={tracking} />}
                 <LandingPage
-                  onSelectSite={setSource}
+                  onSelectSite={selectHospital}
                   mobileScreen={mobileScreen}
                   tracking={tracking}
                   onUpdateTracking={updateTracking}
-                  onOpenAlerts={() => setIsAlertsOpen(true)}
+                  onOpenAlerts={openAlerts}
                   recentVersion={recentVersion}
                 />
               </motion.div>
@@ -155,7 +186,7 @@ export default function App() {
                   source={source}
                   tracking={tracking}
                   onUpdateTracking={updateTracking}
-                  onBack={isMobile ? () => setSource(null) : undefined}
+                  onBack={isMobile ? goBack : undefined}
                 />
               </motion.div>
             )}
@@ -167,17 +198,9 @@ export default function App() {
       <BottomNav
         activeTab={activeTab}
         hasTracking={!!tracking}
-        onHome={() => {
-          setSource(null);
-          setMobileScreen('dashboard');
-          setIsAlertsOpen(false);
-        }}
-        onHospitals={() => {
-          setSource(null);
-          setMobileScreen('hospitals');
-          setIsAlertsOpen(false);
-        }}
-        onAlerts={() => setIsAlertsOpen(true)}
+        onHome={navigateHome}
+        onHospitals={navigateHospitals}
+        onAlerts={openAlerts}
       />
     </div>
   );
