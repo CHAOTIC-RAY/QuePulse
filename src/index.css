@@ -291,14 +291,22 @@
   animation: float 4s ease-in-out infinite;
 }
 
-/* Mobile dashboard — UI/UX Pro Max: accessible healthcare + glass cards */
+/* Mobile dashboard — spacing scale (8 / 12 / 16 / 20 / 24 / 32px) */
 .mobile-dash {
-  @apply space-y-0;
+  --dash-xs: 0.5rem;
+  --dash-sm: 0.75rem;
+  --dash-md: 1rem;
+  --dash-lg: 1.25rem;
+  --dash-xl: 1.5rem;
+  --dash-2xl: 2rem;
 }
 
 .dash-top {
-  /* Keeps QuePulse at same vertical position after removing greeting line */
-  padding-top: max(2rem, calc(env(safe-area-inset-top, 0px) + 0.5rem));
+  padding-top: max(var(--dash-2xl), calc(env(safe-area-inset-top, 0px) + var(--dash-sm)));
+}
+
+.dash-header {
+  margin-bottom: var(--dash-xl);
 }
 
 .brand-logo-muted {
@@ -321,19 +329,61 @@
 }
 
 .dash-section {
-  @apply mb-5;
+  margin-bottom: var(--dash-xl);
+}
+
+.dash-section:last-child {
+  margin-bottom: var(--dash-md);
 }
 
 .dash-section-header {
-  @apply mb-2.5 px-0.5;
+  margin-bottom: var(--dash-sm);
+  padding-inline: 2px;
 }
 
 .dash-section-label {
-  @apply text-[11px] font-bold uppercase tracking-widest text-[var(--muted)];
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  line-height: 1.4;
 }
 
 .dash-section-title {
-  @apply text-base font-black tracking-tight text-[var(--foreground)];
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+  color: var(--foreground);
+}
+
+.dash-body {
+  font-size: 0.875rem;
+  line-height: 1.625;
+  color: var(--muted);
+}
+
+.dash-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dash-md);
+}
+
+.dash-stack-tight {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dash-sm);
+}
+
+.dash-stack-loose {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dash-lg);
+}
+
+.dash-card-pad {
+  padding: var(--dash-lg);
 }
 
 .dash-icon-btn {
@@ -342,7 +392,7 @@
 }
 
 .dash-hero-card {
-  @apply relative overflow-hidden rounded-[1.5rem] p-4 transition-transform active:scale-[0.99];
+  @apply relative overflow-hidden rounded-[1.5rem] transition-transform active:scale-[0.99];
   background: var(--surface-elevated);
   border: 1px solid var(--border);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
@@ -354,26 +404,40 @@
 }
 
 .dash-stat-pill {
-  @apply rounded-xl px-3 py-2.5 border border-[var(--border)];
+  @apply rounded-xl border border-[var(--border)];
+  padding: var(--dash-sm) var(--dash-md);
   background: var(--surface);
+}
+
+.dash-stat-label {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  line-height: 1.4;
+  margin-bottom: var(--dash-xs);
+}
+
+.dash-stat-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
 }
 
 .dash-hero-cta {
   @apply flex items-center justify-center gap-2 w-full min-h-11 rounded-xl text-sm font-bold text-white;
   background: linear-gradient(135deg, var(--hospital-accent, var(--primary)), var(--primary));
+  margin-top: var(--dash-xs);
 }
 
 .dash-glass-card {
-  @apply rounded-[1.35rem] p-4 border border-[var(--border)];
+  @apply rounded-[1.35rem] border border-[var(--border)];
   background: var(--surface-elevated);
   backdrop-filter: blur(16px) saturate(1.3);
   -webkit-backdrop-filter: blur(16px) saturate(1.3);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.05);
-}
-
-.dash-action-icon {
-  @apply w-9 h-9 rounded-xl flex items-center justify-center text-[var(--primary)];
-  background: rgba(123, 67, 151, 0.12);
 }
 
 .dash-input {
@@ -385,8 +449,16 @@
   background: linear-gradient(135deg, var(--primary) 0%, #9B6BC4 45%, var(--accent) 100%);
 }
 
+.dash-hospital-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dash-sm);
+}
+
 .dash-hospital-row {
-  @apply flex items-center gap-3.5 p-3.5 rounded-[1.25rem] border border-[var(--border)] transition-transform active:scale-[0.98];
+  @apply flex items-center rounded-[1.25rem] border border-[var(--border)] transition-transform active:scale-[0.98];
+  gap: var(--dash-md);
+  padding: var(--dash-md);
   background: var(--surface-elevated);
-  min-height: 72px;
+  min-height: 4.5rem;
 }

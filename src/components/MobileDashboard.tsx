@@ -133,7 +133,7 @@ export function MobileDashboard({
 
   return (
     <div className="mobile-dash pb-2">
-      <header className="dash-top safe-top flex items-center justify-between gap-3 mb-5">
+      <header className="dash-top dash-header safe-top flex items-center justify-between gap-3">
         <BrandLogo size="mobile" variant="plain" />
         <button
           type="button"
@@ -152,10 +152,10 @@ export function MobileDashboard({
           transition={{ type: 'spring', stiffness: 320, damping: 30 }}
           className="dash-section"
         >
-          <div className="dash-section-header flex items-center justify-between">
+          <div className="dash-section-header flex items-center justify-between gap-3">
             <p className="dash-section-label">Continue where you left off</p>
             {featured.live && (
-              <span className="live-chip">
+              <span className="live-chip shrink-0">
                 <Radio className="w-2.5 h-2.5" />
                 Live
               </span>
@@ -164,7 +164,7 @@ export function MobileDashboard({
           <button
             type="button"
             onClick={() => onSelectSite(featured.id)}
-            className="dash-hero-card w-full text-left"
+            className="dash-hero-card dash-card-pad w-full text-left"
             style={
               {
                 '--hospital-accent': featured.accent,
@@ -173,7 +173,7 @@ export function MobileDashboard({
             }
           >
             <div className="dash-hero-glow" />
-            <div className="relative z-10">
+            <div className="relative z-10 dash-stack-loose">
               <div className="flex items-start gap-4">
                 <div className="hospital-logo-wrap shrink-0">
                   <img
@@ -182,42 +182,38 @@ export function MobileDashboard({
                     className="w-14 h-14 rounded-2xl object-contain"
                   />
                 </div>
-                <div className="flex-1 min-w-0 pt-0.5">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <MapPin className="w-3.5 h-3.5 text-[var(--muted)]" />
-                    <span className="text-xs font-semibold text-[var(--muted)]">
+                <div className="flex-1 min-w-0 dash-stack-tight">
+                  <div className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-[var(--muted)] shrink-0" />
+                    <span className="text-xs font-semibold text-[var(--muted)] leading-relaxed">
                       {featured.location}
                     </span>
                   </div>
-                  <h2 className="text-lg font-black leading-tight tracking-tight">
+                  <h2 className="text-lg font-black leading-snug tracking-tight">
                     {featured.name}
                   </h2>
                   {featured.tagline && (
-                    <p className="text-xs text-[var(--muted)] mt-1">{featured.tagline}</p>
+                    <p className="text-xs text-[var(--muted)] leading-relaxed">{featured.tagline}</p>
                   )}
                 </div>
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-2 gap-3">
                 <div className="dash-stat-pill">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">
-                    Now serving
-                  </p>
-                  <p className="text-2xl font-black tabular-nums mt-0.5 text-[var(--primary)]">
+                  <p className="dash-stat-label">Now serving</p>
+                  <p className="dash-stat-value text-[var(--primary)]">
                     {featuredLoading ? '…' : featuredServing ?? '—'}
                   </p>
                 </div>
                 <div className="dash-stat-pill">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">
-                    Active counters
-                  </p>
-                  <p className="text-2xl font-black tabular-nums mt-0.5">
+                  <p className="dash-stat-label">Active counters</p>
+                  <p className="dash-stat-value">
                     {featuredLoading ? '…' : featuredCounters ?? '—'}
                   </p>
                 </div>
               </div>
 
-              <span className="dash-hero-cta mt-4">
+              <span className="dash-hero-cta">
                 View live queues
                 <ArrowRight className="w-4 h-4" />
               </span>
@@ -227,36 +223,46 @@ export function MobileDashboard({
       )}
 
       {tracking && trackingHospital && (
-        <motion.button
-          type="button"
+        <motion.section
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          onClick={() => onSelectSite(tracking.source)}
-          className="w-full text-left rounded-2xl p-4 mb-5 brand-gradient text-white shadow-lg shadow-purple-900/20 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--ring)]"
+          className="dash-section"
         >
-          <div className="flex items-center gap-2 mb-3">
-            <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
-            <span className="text-[11px] font-bold uppercase tracking-widest opacity-85">
-              Tracking now
-            </span>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="text-center min-w-[4.5rem] px-2.5 py-2.5 rounded-xl bg-white/15 border border-white/20">
-              <p className="text-[10px] uppercase opacity-75 font-bold">Your token</p>
-              <p className="text-2xl font-black tabular-nums leading-none mt-0.5">
-                {tracking.myToken}
-              </p>
+          <button
+            type="button"
+            onClick={() => onSelectSite(tracking.source)}
+            className="w-full text-left rounded-2xl dash-card-pad brand-gradient text-white shadow-lg shadow-purple-900/20 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--ring)]"
+          >
+            <div className="dash-stack">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+                <span className="text-[11px] font-bold uppercase tracking-widest opacity-85">
+                  Tracking now
+                </span>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="text-center min-w-[4.5rem] px-3 py-3 rounded-xl bg-white/15 border border-white/20">
+                  <p className="text-[10px] uppercase opacity-75 font-bold leading-relaxed">
+                    Your token
+                  </p>
+                  <p className="text-2xl font-black tabular-nums leading-none mt-1">
+                    {tracking.myToken}
+                  </p>
+                </div>
+                <div className="flex-1 min-w-0 dash-stack-tight">
+                  <p className="font-bold truncate text-base leading-snug">
+                    {trackingHospital.shortName}
+                  </p>
+                  <p className="text-sm opacity-85 leading-relaxed">
+                    Now serving{' '}
+                    <span className="font-black tabular-nums">{serving ?? '…'}</span>
+                  </p>
+                </div>
+                <ChevronRight className="w-5 h-5 opacity-75 shrink-0" />
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-bold truncate text-base">{trackingHospital.shortName}</p>
-              <p className="text-sm opacity-85 mt-0.5">
-                Now serving{' '}
-                <span className="font-black tabular-nums">{serving ?? '…'}</span>
-              </p>
-            </div>
-            <ChevronRight className="w-5 h-5 opacity-75 shrink-0" />
-          </div>
-        </motion.button>
+          </button>
+        </motion.section>
       )}
 
       <section className="dash-section" aria-labelledby="quick-alert-heading">
@@ -265,83 +271,87 @@ export function MobileDashboard({
             Quick alert
           </h2>
         </div>
-        <div className="dash-glass-card">
-        <p className="text-sm text-[var(--muted)] mb-3">
-          Enter your token and get notified when your turn is near.
-        </p>
-        <div className="chip-scroll mb-3" role="group" aria-label="Select hospital">
-          {HOSPITALS.slice(0, 6).map((h) => (
-            <button
-              key={h.id}
-              type="button"
-              onClick={() => setAlertHospital(h.id)}
-              className={`region-chip min-h-11 text-xs px-3.5 ${alertHospital === h.id ? 'region-chip-active' : ''}`}
-            >
-              {alertHospital === h.id && (
-                <span className="region-chip-bg absolute inset-0 rounded-full" />
-              )}
-              <span className="relative z-10">{h.shortName}</span>
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-2 mb-3">
-          <div className="relative flex-1">
-            <Hash className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted)]" />
-            <input
-              type="text"
-              inputMode="numeric"
-              placeholder="Token number"
-              value={tokenInput}
-              onChange={(e) => setTokenInput(e.target.value)}
-              className="dash-input w-full pl-10 pr-3 min-h-11"
-              aria-label="Token number"
-            />
+        <div className="dash-glass-card dash-card-pad dash-stack">
+          <p className="dash-body">
+            Enter your token and get notified when your turn is near.
+          </p>
+
+          <div className="chip-scroll" role="group" aria-label="Select hospital">
+            {HOSPITALS.slice(0, 6).map((h) => (
+              <button
+                key={h.id}
+                type="button"
+                onClick={() => setAlertHospital(h.id)}
+                className={`region-chip min-h-11 text-xs px-3.5 ${alertHospital === h.id ? 'region-chip-active' : ''}`}
+              >
+                {alertHospital === h.id && (
+                  <span className="region-chip-bg absolute inset-0 rounded-full" />
+                )}
+                <span className="relative z-10">{h.shortName}</span>
+              </button>
+            ))}
           </div>
+
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <Hash className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted)]" />
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="Token number"
+                value={tokenInput}
+                onChange={(e) => setTokenInput(e.target.value)}
+                className="dash-input w-full pl-10 pr-3 min-h-11"
+                aria-label="Token number"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={startQuickTrack}
+              disabled={!tokenInput.trim()}
+              className="dash-primary-btn px-5 min-h-11 text-sm shrink-0"
+            >
+              Track
+            </button>
+          </div>
+
+          <div className="flex gap-2" role="group" aria-label="Alert distance">
+            {[1, 2, 3, 5].map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setThreshold(n)}
+                className={`flex-1 min-h-11 rounded-xl text-xs font-bold transition-colors ${
+                  threshold === n
+                    ? 'brand-gradient text-white'
+                    : 'border border-[var(--border)] text-[var(--muted)] bg-[var(--surface)]'
+                }`}
+              >
+                {n} away
+              </button>
+            ))}
+          </div>
+
           <button
             type="button"
-            onClick={startQuickTrack}
-            disabled={!tokenInput.trim()}
-            className="dash-primary-btn px-5 min-h-11 text-sm"
+            onClick={onOpenAlerts}
+            className="w-full min-h-11 text-sm font-semibold text-[var(--primary)] flex items-center justify-center gap-2 rounded-xl hover:bg-[var(--surface)] transition-colors"
           >
-            Track
+            <Bell className="w-4 h-4" /> Advanced alert settings
           </button>
-        </div>
-        <div className="flex gap-2" role="group" aria-label="Alert distance">
-          {[1, 2, 3, 5].map((n) => (
-            <button
-              key={n}
-              type="button"
-              onClick={() => setThreshold(n)}
-              className={`flex-1 min-h-11 rounded-xl text-xs font-bold transition-colors ${
-                threshold === n
-                  ? 'brand-gradient text-white'
-                  : 'border border-[var(--border)] text-[var(--muted)] bg-[var(--surface)]'
-              }`}
-            >
-              {n} away
-            </button>
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={onOpenAlerts}
-          className="mt-4 w-full min-h-11 text-sm font-semibold text-[var(--primary)] flex items-center justify-center gap-1.5 rounded-xl hover:bg-[var(--surface)] transition-colors"
-        >
-          <Bell className="w-4 h-4" /> Advanced alert settings
-        </button>
         </div>
       </section>
 
       <section className="dash-section" aria-labelledby="all-hospitals-heading">
-        <div className="dash-section-header flex items-center justify-between">
+        <div className="dash-section-header flex items-center justify-between gap-3">
           <h2 id="all-hospitals-heading" className="dash-section-title">
             All hospitals
           </h2>
-          <span className="text-xs font-semibold text-[var(--muted)]">
+          <span className="text-xs font-semibold text-[var(--muted)] leading-relaxed shrink-0">
             {otherHospitals.length + 1} total
           </span>
         </div>
-        <div className="space-y-2.5">
+        <div className="dash-hospital-list">
           {otherHospitals.map((hospital, index) => (
             <motion.button
               key={hospital.id}
@@ -366,10 +376,10 @@ export function MobileDashboard({
                   loading="lazy"
                 />
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <MapPin className="w-3 h-3 text-[var(--muted)]" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">
+              <div className="flex-1 min-w-0 dash-stack-tight">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <MapPin className="w-3 h-3 text-[var(--muted)] shrink-0" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)] leading-relaxed">
                     {hospital.location}
                   </span>
                   {hospital.live && (
@@ -379,7 +389,7 @@ export function MobileDashboard({
                     </span>
                   )}
                 </div>
-                <p className="font-bold text-[15px] leading-tight truncate">{hospital.name}</p>
+                <p className="font-bold text-[15px] leading-snug truncate">{hospital.name}</p>
               </div>
               <ChevronRight className="w-4 h-4 text-[var(--muted)] shrink-0" />
             </motion.button>
