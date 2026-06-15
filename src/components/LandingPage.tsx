@@ -42,6 +42,7 @@ export function LandingPage({
           onUpdateTracking={onUpdateTracking ?? (() => {})}
           onSelectSite={onSelectSite}
           onOpenAlerts={onOpenAlerts ?? (() => {})}
+          recentVersion={recentVersion}
         />
       </div>
     );
@@ -63,7 +64,7 @@ export function LandingPage({
       )}
 
       {isMobile && (
-        <h2 className="text-lg font-black tracking-tight">All hospitals</h2>
+        <h2 className="text-lg font-black tracking-tight safe-top pt-1">All hospitals</h2>
       )}
 
       <div className="chip-scroll">

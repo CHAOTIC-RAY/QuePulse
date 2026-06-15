@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Loader2, Bell, BellOff, Search, ChevronRight, History, X, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Loader2, Bell, BellOff, Search, ChevronRight, History, X, RefreshCw, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { queueService } from '../services/queueService';
 import { SiteSource, Queue, UserTracking } from '../types';
@@ -17,9 +17,10 @@ interface QueueBoardProps {
   source: SiteSource;
   tracking: UserTracking | null;
   onUpdateTracking: (t: UserTracking | null) => void;
+  onBack?: () => void;
 }
 
-export function QueueBoard({ source, tracking, onUpdateTracking }: QueueBoardProps) {
+export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: QueueBoardProps) {
   const hospital = HOSPITAL_MAP[source];
   const [queues, setQueues] = useState<Queue[]>([]);
   const [loading, setLoading] = useState(true);
@@ -152,6 +153,15 @@ export function QueueBoard({ source, tracking, onUpdateTracking }: QueueBoardPro
 
   return (
     <div className="space-y-4 pb-32 md:pb-8">
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-2 text-sm font-bold text-[var(--primary)] min-h-11 -ml-1 px-1 safe-top focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--ring)] rounded-lg"
+        >
+          <ArrowLeft className="w-4 h-4" /> Back
+        </button>
+      )}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}

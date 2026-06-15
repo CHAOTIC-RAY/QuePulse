@@ -27,6 +27,7 @@
     --nav-glass-border: rgba(255, 255, 255, 0.85);
     --glow: rgba(123, 67, 151, 0.18);
     --pulse: rgba(249, 168, 37, 0.35);
+    --ring: rgba(123, 67, 151, 0.45);
   }
 
   :root.dark {
@@ -46,6 +47,7 @@
     --nav-glass-border: rgba(255, 255, 255, 0.14);
     --glow: rgba(155, 107, 196, 0.22);
     --pulse: rgba(255, 177, 27, 0.28);
+    --ring: rgba(155, 107, 196, 0.55);
   }
 
   html {
@@ -61,8 +63,22 @@
     font-family: var(--font-sans);
     @apply antialiased overflow-x-hidden;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
     overscroll-behavior-y: contain;
     min-height: 100dvh;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
 
@@ -223,4 +239,76 @@
 
 .float-slow {
   animation: float 4s ease-in-out infinite;
+}
+
+/* Mobile dashboard — UI/UX Pro Max: accessible healthcare + glass cards */
+.mobile-dash {
+  @apply space-y-0;
+}
+
+.dash-top {
+  padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
+}
+
+.dash-section-label {
+  @apply text-[11px] font-bold uppercase tracking-widest text-[var(--muted)];
+}
+
+.dash-section-title {
+  @apply text-base font-black tracking-tight;
+}
+
+.dash-icon-btn {
+  @apply w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border border-[var(--border)] transition-transform active:scale-95;
+  background: var(--surface-elevated);
+}
+
+.dash-hero-card {
+  @apply relative overflow-hidden rounded-[1.5rem] p-4 transition-transform active:scale-[0.99];
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+}
+
+.dash-hero-glow {
+  @apply absolute -right-10 -top-10 w-32 h-32 rounded-full blur-3xl opacity-70 pointer-events-none;
+  background: var(--hospital-muted, var(--glow));
+}
+
+.dash-stat-pill {
+  @apply rounded-xl px-3 py-2.5 border border-[var(--border)];
+  background: var(--surface);
+}
+
+.dash-hero-cta {
+  @apply flex items-center justify-center gap-2 w-full min-h-11 rounded-xl text-sm font-bold text-white;
+  background: linear-gradient(135deg, var(--hospital-accent, var(--primary)), var(--primary));
+}
+
+.dash-glass-card {
+  @apply rounded-[1.35rem] p-4 border border-[var(--border)];
+  background: var(--surface-elevated);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.05);
+}
+
+.dash-action-icon {
+  @apply w-9 h-9 rounded-xl flex items-center justify-center text-[var(--primary)];
+  background: rgba(123, 67, 151, 0.12);
+}
+
+.dash-input {
+  @apply rounded-xl border border-[var(--border)] bg-[var(--surface)] text-base font-bold tabular-nums;
+}
+
+.dash-primary-btn {
+  @apply rounded-xl text-white font-bold disabled:opacity-40 transition-opacity;
+  background: linear-gradient(135deg, var(--primary) 0%, #9B6BC4 45%, var(--accent) 100%);
+}
+
+.dash-hospital-row {
+  @apply flex items-center gap-3.5 p-3.5 rounded-[1.25rem] border border-[var(--border)] transition-transform active:scale-[0.98];
+  background: var(--surface-elevated);
+  min-height: 72px;
 }
