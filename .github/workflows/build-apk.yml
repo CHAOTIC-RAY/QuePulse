@@ -7,6 +7,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -32,28 +36,65 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            android/.gradle
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
       - name: Install dependencies
         run: npm ci
 
       - name: Lint
         run: npm run lint
 
-      - name: Build web + sync Capacitor
+      - name: Build web app and sync Capacitor
         run: npm run build:mobile
 
-      - name: Build debug APK
-        run: cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+      - name: Decode release keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/release.keystore
+            echo "ANDROID_KEYSTORE_PATH=$PWD/android/release.keystore" >> $GITHUB_ENV
+            echo "ANDROID_KEYSTORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD" >> $GITHUB_ENV
+            echo "ANDROID_KEY_ALIAS=$ANDROID_KEY_ALIAS" >> $GITHUB_ENV
+            echo "ANDROID_KEY_PASSWORD=$ANDROID_KEY_PASSWORD" >> $GITHUB_ENV
+            echo "Signed with release keystore"
+          else
+            echo "No release keystore secrets — APK will be signed with debug key"
+          fi
 
-      - name: Prepare APK for release
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk quepulse.apk
+      - name: Build release APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Verify APK output
+        run: |
+          test -f android/app/build/outputs/apk/release/app-release.apk
+          ls -lh android/app/build/outputs/apk/release/
+
+      - name: Prepare distributable APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk quepulse.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: quepulse-debug-apk
+          name: quepulse-release-apk
           path: quepulse.apk
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
 
       - name: Delete previous latest-apk release
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -76,8 +117,21 @@ jobs:
           tag_name: latest-apk
           name: QuePulse Latest APK
           body: |
-            Automated Android APK from the latest main branch build.
-            Download `quepulse.apk` or scan the QR code on the QuePulse desktop site.
+            ## QuePulse Android APK
+
+            Automated **release** build from `main`.
+
+            ### Install
+            1. Download `quepulse.apk` below
+            2. On Android: enable **Install unknown apps** for your browser/files app
+            3. Open the APK and install
+
+            Or scan the QR code on the [QuePulse desktop site](https://quepulse.chaoticstudio.workers.dev).
+
+            ### Build info
+            - Commit: ${{ github.sha }}
+            - Workflow: ${{ github.workflow }}
+            - Add `ANDROID_KEYSTORE_*` repo secrets for production signing; otherwise CI uses a debug key.
           files: quepulse.apk
           make_latest: true
           prerelease: false

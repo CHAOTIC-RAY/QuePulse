@@ -107,7 +107,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | `npm run preview` | Build + Wrangler dev (Cloudflare Worker locally) |
 | `npm run deploy` | Build + deploy to Cloudflare Workers |
 | `npm run build:mobile` | Build web + sync to Capacitor Android |
-| `npm run build:apk` | Build debug APK (requires Android SDK + `ANDROID_HOME`) |
+| `npm run build:apk` | Build release APK (requires Android SDK + `ANDROID_HOME`) |
 
 ### Deep links
 
@@ -118,16 +118,33 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Android APK
 
-APKs are built automatically on GitHub Actions when changes are pushed to `main`.
+Release APKs are built automatically on GitHub Actions when changes are pushed to `main`.
+
+**Download (recommended):** [latest release APK](https://github.com/CHAOTIC-RAY/QuePulse/releases/download/latest-apk/quepulse.apk) — also linked from the desktop sidebar QR code.
+
+From CI artifacts:
 
 1. Go to **Actions** → **Build Android APK** → latest run.
-2. Download the **quepulse-debug-apk** artifact (`app-debug.apk`).
+2. Download the **quepulse-release-apk** artifact (`quepulse.apk`).
+
+### Production signing (optional)
+
+Add these GitHub repository secrets for a properly signed release APK:
+
+| Secret | Description |
+|--------|-------------|
+| `ANDROID_KEYSTORE_BASE64` | Base64-encoded `.jks` or `.keystore` file |
+| `ANDROID_KEYSTORE_PASSWORD` | Keystore password |
+| `ANDROID_KEY_ALIAS` | Key alias |
+| `ANDROID_KEY_PASSWORD` | Key password |
+
+Without these secrets, CI still builds a release APK signed with the debug key (fine for personal installs).
 
 To build locally:
 
 ```bash
 npm run build:apk
-# Output: android/app/build/outputs/apk/debug/app-debug.apk
+# Output: android/app/build/outputs/apk/release/app-release.apk
 ```
 
 ---

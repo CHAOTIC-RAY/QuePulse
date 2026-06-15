@@ -8,7 +8,7 @@
     "build": "npm run icons && vite build",
     "icons": "node scripts/gen-icons.mjs",
     "build:mobile": "npm run icons && npm run build && npx cap sync android",
-    "build:apk": "npm run build:mobile && cd android && ./gradlew assembleDebug",
+    "build:apk": "npm run build:mobile && cd android && ./gradlew assembleRelease",
     "preview": "npm run build && wrangler dev",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
