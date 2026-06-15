@@ -6,8 +6,7 @@ import { HOSPITAL_MAP } from '../data/hospitals';
 import { CategoryChips } from './CategoryChips';
 import { getQueueCategory, sortCategories, QueueCategory } from '../lib/categories';
 import {
-  recordQueueTimestamps,
-  enrichQueuesWithPriority,
+  prepareQueuesForDisplay,
   getRoomEtaText,
   getWaitEtaText,
 } from '../lib/queueTiming';
@@ -53,9 +52,12 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
   }, [source]);
 
   useEffect(() => {
-    const tokenHistory = recordQueueTimestamps(rawQueues);
-    const enriched = enrichQueuesWithPriority(rawQueues, tokenHistory);
-    setHistoryMap(tokenHistory);
+    const keepIds =
+      tracking?.source === source && tracking.queueId ? [tracking.queueId] : undefined;
+    const { queues: enriched, historyMap: history } = prepareQueuesForDisplay(rawQueues, {
+      keepIds,
+    });
+    setHistoryMap(history);
     setQueues(enriched);
 
     if (tracking && tracking.source === source) {

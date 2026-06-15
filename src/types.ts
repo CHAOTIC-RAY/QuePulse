@@ -24,7 +24,8 @@ export type SiteSource =
   | 'dharumavantha'
   | 'urh'
   | 'fah'
-  | 'shah';
+  | 'shah'
+  | 'asmh';
 
 export interface UserTracking {
   source: SiteSource;

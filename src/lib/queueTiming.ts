@@ -7,6 +7,8 @@ const MAX_HISTORY = 12;
 const JUMP_THRESHOLD = 5;
 /** Recalculate room pace / wait ETA from history at most every 30 minutes */
 const ETA_CACHE_TTL_MS = 30 * 60 * 1000;
+/** Hide rooms with no token activity for longer than this */
+export const ROOM_INACTIVE_MS = 60 * 60 * 1000;
 
 export type TokenHistoryEntry = { token: string; time: number };
 
@@ -31,6 +33,7 @@ export function detectPriorityJump(prevToken: string, nextToken: string): boolea
 
 function loadHistory(): Record<string, string[]> {
   try {
+    if (typeof localStorage === 'undefined') return {};
     return JSON.parse(localStorage.getItem(HISTORY_KEY) || '{}');
   } catch {
     return {};
@@ -39,6 +42,7 @@ function loadHistory(): Record<string, string[]> {
 
 function loadTimedHistory(): Record<string, TokenHistoryEntry[]> {
   try {
+    if (typeof localStorage === 'undefined') return {};
     return JSON.parse(localStorage.getItem(HISTORY_TIMES_KEY) || '{}');
   } catch {
     return {};
@@ -47,6 +51,7 @@ function loadTimedHistory(): Record<string, TokenHistoryEntry[]> {
 
 function loadEtaCache(): EtaCacheStore {
   try {
+    if (typeof localStorage === 'undefined') return {};
     return JSON.parse(localStorage.getItem(ETA_CACHE_KEY) || '{}');
   } catch {
     return {};
@@ -54,6 +59,7 @@ function loadEtaCache(): EtaCacheStore {
 }
 
 function saveEtaCache(cache: EtaCacheStore) {
+  if (typeof localStorage === 'undefined') return;
   localStorage.setItem(ETA_CACHE_KEY, JSON.stringify(cache));
 }
 
@@ -123,11 +129,57 @@ export function recordQueueTimestamps(queues: Queue[]): Record<string, string[]>
   }
 
   if (changed) {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(tokenHistory));
-    localStorage.setItem(HISTORY_TIMES_KEY, JSON.stringify(timedHistory));
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(tokenHistory));
+      localStorage.setItem(HISTORY_TIMES_KEY, JSON.stringify(timedHistory));
+    }
   }
 
   return tokenHistory;
+}
+
+function parseQueueLastUpdated(lastUpdated: Queue['lastUpdated']): number | null {
+  if (!lastUpdated) return null;
+  const ms = new Date(lastUpdated).getTime();
+  return Number.isNaN(ms) ? null : ms;
+}
+
+/** Last time this room had token activity (local history or hospital timestamp). */
+export function getQueueLastActivity(queue: Queue): number {
+  const timed = loadTimedHistory()[queue.id]?.[0];
+  if (timed && timed.token === queue.currentNumber) return timed.time;
+
+  const fromApi = parseQueueLastUpdated(queue.lastUpdated);
+  if (fromApi !== null) return fromApi;
+
+  return Date.now();
+}
+
+/** Drop rooms that have not changed token in over an hour (tracked rooms are kept). */
+export function filterRecentlyActiveQueues(
+  queues: Queue[],
+  options?: { keepIds?: string[]; maxInactiveMs?: number }
+): Queue[] {
+  const keep = new Set(options?.keepIds?.filter(Boolean) ?? []);
+  const maxInactiveMs = options?.maxInactiveMs ?? ROOM_INACTIVE_MS;
+  const now = Date.now();
+
+  return queues.filter((queue) => {
+    if (keep.has(queue.id)) return true;
+    return now - getQueueLastActivity(queue) <= maxInactiveMs;
+  });
+}
+
+export function prepareQueuesForDisplay(
+  queues: Queue[],
+  options?: { keepIds?: string[] }
+): { queues: Queue[]; historyMap: Record<string, string[]> } {
+  const historyMap = recordQueueTimestamps(queues);
+  const active = filterRecentlyActiveQueues(queues, options);
+  return {
+    queues: enrichQueuesWithPriority(active, historyMap),
+    historyMap,
+  };
 }
 
 export function enrichQueuesWithPriority(

@@ -325,6 +325,7 @@ const HOSPITAL_API_PATHS: Record<SiteSource, string> = {
   urh: '/api/urh/queues',
   fah: '/api/fah/queues',
   shah: '/api/shah/queues',
+  asmh: '/api/asmh/queues',
 };
 
 export function getHospitalApiUrl(source: SiteSource): string {

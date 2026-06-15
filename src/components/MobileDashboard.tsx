@@ -18,7 +18,7 @@ import {
   requestNotificationPermission,
   syncTrackingToServiceWorker,
 } from '../lib/notifications';
-import { recordQueueTimestamps, getRoomEtaText } from '../lib/queueTiming';
+import { prepareQueuesForDisplay, getRoomEtaText } from '../lib/queueTiming';
 import { getServingParts } from '../lib/queueDisplay';
 import { getAlwaysOnNotifications } from '../lib/alwaysOn';
 import { useQueuePolling } from '../hooks/useQueuePolling';
@@ -56,23 +56,26 @@ export function MobileDashboard({
   const featuredId = recent[0] ?? HOSPITALS[0].id;
   const featured = HOSPITAL_MAP[featuredId];
 
+  const trackingKeepIds = useMemo(
+    () => (tracking?.queueId ? [tracking.queueId] : undefined),
+    [tracking?.queueId]
+  );
+
   const { queues: trackingQueues } = useQueuePolling(tracking?.source ?? null);
   const { queues: featuredQueues, loading: featuredLoading } = useQueuePolling(featuredId, 12_000);
 
   const servingQueue = useMemo(() => {
     if (!tracking) return null;
+    const { queues } = prepareQueuesForDisplay(trackingQueues, { keepIds: trackingKeepIds });
     if (tracking.queueId) {
-      return trackingQueues.find((q) => q.id === tracking.queueId) ?? null;
+      return queues.find((q) => q.id === tracking.queueId) ?? null;
     }
-    return trackingQueues[0] ?? null;
-  }, [tracking, trackingQueues]);
+    return queues[0] ?? null;
+  }, [tracking, trackingQueues, trackingKeepIds]);
 
   const { featuredQueue, featuredEta } = useMemo(() => {
-    if (featuredQueues.length === 0) {
-      return { featuredQueue: null as Queue | null, featuredEta: null as string | null };
-    }
-    recordQueueTimestamps(featuredQueues);
-    const lead = featuredQueues[0] ?? null;
+    const { queues } = prepareQueuesForDisplay(featuredQueues);
+    const lead = queues[0] ?? null;
     return {
       featuredQueue: lead,
       featuredEta: lead ? getRoomEtaText(lead.id) : null,

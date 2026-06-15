@@ -118,6 +118,18 @@ export const HOSPITALS: HospitalConfig[] = [
     live: true,
     tagline: 'May be intermittent',
   },
+  {
+    id: 'asmh',
+    name: 'Dr. Abdul Samad Memorial Hospital',
+    shortName: 'ASMH',
+    location: 'Thinadhoo, GDh Atoll',
+    region: 'south',
+    logo: '/hospitals/asmh.svg',
+    accent: '#009899',
+    accentMuted: 'rgba(0,152,153,0.15)',
+    live: true,
+    tagline: 'Southern atolls',
+  },
 ];
 
 export const HOSPITAL_MAP = Object.fromEntries(HOSPITALS.map((h) => [h.id, h])) as Record<
@@ -132,5 +144,6 @@ export const REGIONS: { id: HospitalRegion | 'all'; label: string }[] = [
   { id: 'malé', label: 'Malé' },
   { id: 'greater-malé', label: 'Greater Malé' },
   { id: 'north', label: 'North' },
+  { id: 'south', label: 'South' },
   { id: 'atoll', label: 'Atolls' },
 ];

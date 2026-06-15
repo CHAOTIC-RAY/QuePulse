@@ -33,6 +33,18 @@ function isActiveToken(token: unknown) {
   return t !== '' && t !== '-' && t !== 'N/A' && t !== 'CLOSED' && t !== '0';
 }
 
+function decodeHtmlEntities(str: string) {
+  return str
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
+function unwrapLivewireItem(entry: unknown) {
+  if (Array.isArray(entry)) return entry[0];
+  return entry;
+}
+
 function formatHMHDeptItem(item: Record<string, unknown>) {
   const label = String(item.RoomLabel || 'Counter');
   const upper = label.toUpperCase();
@@ -328,6 +340,58 @@ async function scrapeShah() {
   return queues;
 }
 
+async function scrapeASMH() {
+  const resp = await fetch('https://asmh.gov.mv/room-tokens', { headers: SCRAPE_HEADERS });
+  if (!resp.ok) throw new Error('ASMH room tokens page unavailable');
+  const html = await resp.text();
+  const match = html.match(/wire:snapshot="([^"]+)"/);
+  if (!match) return [];
+
+  let snap: { data?: { roomTokens?: unknown[][] } };
+  try {
+    snap = JSON.parse(decodeHtmlEntities(match[1]));
+  } catch {
+    return [];
+  }
+
+  const raw = snap?.data?.roomTokens?.[0];
+  if (!Array.isArray(raw)) return [];
+
+  const queues: Array<{
+    id: string;
+    name: string;
+    prefix: string;
+    currentNumber: string;
+    counterInfo: string;
+    lastUpdated: Date;
+  }> = [];
+
+  for (const entry of raw) {
+    const station = unwrapLivewireItem(entry) as Record<string, unknown> | null;
+    if (!station || typeof station !== 'object') continue;
+    if (station.is_offline) continue;
+    if (!isActiveToken(station.ticket_no)) continue;
+
+    const room = String(station.room || 'Room').trim();
+    const doctor = String(station.doctor_name || '').trim();
+    const specialty = String(station.specialty || '').trim();
+    const name = doctor || room;
+    const counterParts = [specialty, station.status_name, room !== name ? room : ''].filter(Boolean);
+
+    queues.push({
+      id: `asmh-${station.station_id}`,
+      name,
+      prefix: '',
+      currentNumber: String(station.ticket_no),
+      counterInfo: counterParts.join(' · ') || room,
+      lastUpdated: new Date(),
+    });
+  }
+
+  queues.sort((a, b) => a.name.localeCompare(b.name));
+  return queues;
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -410,6 +474,15 @@ async function startServer() {
     } catch (error) {
       console.error('Shah scrape error:', error);
       res.status(500).json({ error: 'Failed to scrape Sh. Atoll Hospital queues' });
+    }
+  });
+
+  app.get('/api/asmh/queues', async (_req, res) => {
+    try {
+      res.json(await scrapeASMH());
+    } catch (error) {
+      console.error('ASMH scrape error:', error);
+      res.status(500).json({ error: 'Failed to scrape ASMH queues' });
     }
   });
 

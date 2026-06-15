@@ -35,6 +35,18 @@ function isActiveToken(token) {
   return t !== '' && t !== '-' && t !== 'N/A' && t !== 'CLOSED' && t !== '0';
 }
 
+function decodeHtmlEntities(str) {
+  return str
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
+function unwrapLivewireItem(entry) {
+  if (Array.isArray(entry)) return entry[0];
+  return entry;
+}
+
 function formatHMHDeptItem(item) {
   const label = String(item.RoomLabel || 'Counter');
   const upper = label.toUpperCase();
@@ -339,6 +351,50 @@ async function scrapeShah() {
   return queues;
 }
 
+async function scrapeASMH() {
+  const resp = await fetch('https://asmh.gov.mv/room-tokens', { headers: SCRAPE_HEADERS });
+  if (!resp.ok) throw new Error('ASMH room tokens page unavailable');
+  const html = await resp.text();
+  const match = html.match(/wire:snapshot="([^"]+)"/);
+  if (!match) return [];
+
+  let snap;
+  try {
+    snap = JSON.parse(decodeHtmlEntities(match[1]));
+  } catch {
+    return [];
+  }
+
+  const raw = snap?.data?.roomTokens?.[0];
+  if (!Array.isArray(raw)) return [];
+
+  const queues = [];
+  for (const entry of raw) {
+    const station = unwrapLivewireItem(entry);
+    if (!station || typeof station !== 'object') continue;
+    if (station.is_offline) continue;
+    if (!isActiveToken(station.ticket_no)) continue;
+
+    const room = String(station.room || 'Room').trim();
+    const doctor = String(station.doctor_name || '').trim();
+    const specialty = String(station.specialty || '').trim();
+    const name = doctor || room;
+    const counterParts = [specialty, station.status_name, room !== name ? room : ''].filter(Boolean);
+
+    queues.push({
+      id: `asmh-${station.station_id}`,
+      name,
+      prefix: '',
+      currentNumber: String(station.ticket_no),
+      counterInfo: counterParts.join(' · ') || room,
+      lastUpdated: new Date().toISOString(),
+    });
+  }
+
+  queues.sort((a, b) => a.name.localeCompare(b.name));
+  return queues;
+}
+
 const SCRAPERS = {
   '/api/hmh/queues': scrapeHMH,
   '/api/adk/queues': scrapeADK,
@@ -349,6 +405,7 @@ const SCRAPERS = {
   '/api/urh/queues': scrapeURH,
   '/api/fah/queues': scrapeFAH,
   '/api/shah/queues': scrapeShah,
+  '/api/asmh/queues': scrapeASMH,
 };
 
 export default {
@@ -383,6 +440,7 @@ export default {
       { paths: ['/urh'], hospital: 'urh' },
       { paths: ['/fah'], hospital: 'fah' },
       { paths: ['/shah'], hospital: 'shah' },
+      { paths: ['/asmh'], hospital: 'asmh' },
     ];
 
     for (const { paths, hospital } of redirects) {

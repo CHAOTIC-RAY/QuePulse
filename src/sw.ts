@@ -27,6 +27,7 @@ const API_PATHS: Record<string, string> = {
   urh: '/api/urh/queues',
   fah: '/api/fah/queues',
   shah: '/api/shah/queues',
+  asmh: '/api/asmh/queues',
 };
 
 let tracking: TrackingPayload | null = null;

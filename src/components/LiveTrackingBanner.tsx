@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { motion } from 'motion/react';
 import { Clock, Activity, Users } from 'lucide-react';
 import { UserTracking } from '../types';
-import { getWaitEtaText } from '../lib/queueTiming';
+import { prepareQueuesForDisplay, getWaitEtaText } from '../lib/queueTiming';
 import { useQueuePolling } from '../hooks/useQueuePolling';
 
 interface LiveTrackingBannerProps {
@@ -10,9 +10,12 @@ interface LiveTrackingBannerProps {
 }
 
 export function LiveTrackingBanner({ tracking }: LiveTrackingBannerProps) {
-  const { queues, loading } = useQueuePolling(tracking.source, 8_000);
+  const { queues: rawQueues, loading } = useQueuePolling(tracking.source, 8_000);
 
   const { queue, patientsLeft, etaText } = useMemo(() => {
+    const keepIds = tracking.queueId ? [tracking.queueId] : undefined;
+    const { queues } = prepareQueuesForDisplay(rawQueues, { keepIds });
+
     let matchedQueue = queues.find((q) => q.id === tracking.queueId);
     if (!matchedQueue && tracking.isGlobal) {
       matchedQueue = queues.find((q) => {
@@ -36,7 +39,7 @@ export function LiveTrackingBanner({ tracking }: LiveTrackingBannerProps) {
       patientsLeft: left,
       etaText: getWaitEtaText(matchedQueue.id, tracking.myToken, matchedQueue.currentNumber),
     };
-  }, [queues, tracking]);
+  }, [rawQueues, tracking]);
 
   if (loading && !queue) {
     return (

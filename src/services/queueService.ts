@@ -30,6 +30,7 @@ export const queueService = {
   getExternalURHQueues: () => fetchQueues('/api/urh/queues'),
   getExternalFAHQueues: () => fetchQueues('/api/fah/queues'),
   getExternalShahQueues: () => fetchQueues('/api/shah/queues'),
+  getExternalASMHQueues: () => fetchQueues('/api/asmh/queues'),
 
   getQueuesForSource(source: SiteSource): Promise<Queue[]> {
     const map: Record<SiteSource, () => Promise<Queue[]>> = {
@@ -42,6 +43,7 @@ export const queueService = {
       urh: this.getExternalURHQueues,
       fah: this.getExternalFAHQueues,
       shah: this.getExternalShahQueues,
+      asmh: this.getExternalASMHQueues,
     };
     return map[source]();
   },
