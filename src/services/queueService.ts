@@ -21,6 +21,9 @@ export const queueService = {
   getExternalIGMHQueues: () => fetchQueues('/api/igmh/queues'),
   getExternalVilimaleQueues: () => fetchQueues('/api/vilimale/queues'),
   getExternalDharumavanthaQueues: () => fetchQueues('/api/dharumavantha/queues'),
+  getExternalURHQueues: () => fetchQueues('/api/urh/queues'),
+  getExternalFAHQueues: () => fetchQueues('/api/fah/queues'),
+  getExternalShahQueues: () => fetchQueues('/api/shah/queues'),
 
   getQueuesForSource(source: SiteSource): Promise<Queue[]> {
     const map: Record<SiteSource, () => Promise<Queue[]>> = {
@@ -30,6 +33,9 @@ export const queueService = {
       igmh: this.getExternalIGMHQueues,
       vilimale: this.getExternalVilimaleQueues,
       dharumavantha: this.getExternalDharumavanthaQueues,
+      urh: this.getExternalURHQueues,
+      fah: this.getExternalFAHQueues,
+      shah: this.getExternalShahQueues,
     };
     return map[source]();
   },

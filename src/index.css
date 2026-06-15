@@ -3,17 +3,45 @@
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-brand: #7B4397;
+  --color-brand-dark: #5E2F75;
+  --color-accent: #F9A825;
+  --color-accent-dark: #E08E00;
 }
 
 @layer base {
   :root {
-    --background: #f8fafc;
-    --foreground: #0f172a;
+    --background: #FAF7FF;
+    --foreground: #1A1028;
+    --surface: rgba(255, 255, 255, 0.72);
+    --surface-elevated: rgba(255, 255, 255, 0.92);
+    --border: rgba(123, 67, 151, 0.12);
+    --muted: #6B5B7B;
+    --primary: #7B4397;
+    --primary-foreground: #ffffff;
+    --accent: #F9A825;
+    --accent-foreground: #1A1028;
+    --glass-bg: rgba(255, 255, 255, 0.78);
+    --glass-border: rgba(255, 255, 255, 0.65);
+    --glow: rgba(123, 67, 151, 0.18);
+    --pulse: rgba(249, 168, 37, 0.35);
   }
 
   :root.dark {
-    --background: #000000;
-    --foreground: #f8fafc;
+    --background: #07040F;
+    --foreground: #F8F4FF;
+    --surface: rgba(18, 12, 28, 0.72);
+    --surface-elevated: rgba(24, 16, 36, 0.92);
+    --border: rgba(255, 255, 255, 0.08);
+    --muted: #A89BB8;
+    --primary: #9B6BC4;
+    --primary-foreground: #ffffff;
+    --accent: #FFB11B;
+    --accent-foreground: #120818;
+    --glass-bg: rgba(12, 8, 20, 0.72);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --glow: rgba(155, 107, 196, 0.22);
+    --pulse: rgba(255, 177, 27, 0.28);
   }
 
   html {
@@ -21,22 +49,123 @@
   }
 
   body {
-    background-color: var(--background);
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, var(--glow), transparent 55%),
+      radial-gradient(ellipse 40% 30% at 100% 0%, var(--pulse), transparent 50%),
+      var(--background);
     color: var(--foreground);
     font-family: var(--font-sans);
     @apply antialiased overflow-x-hidden;
     -webkit-tap-highlight-color: transparent;
     overscroll-behavior-y: contain;
+    min-height: 100dvh;
   }
 }
 
 .glass {
-  @apply bg-white/90 dark:bg-black/90 backdrop-blur-xl border-b border-slate-200/60 dark:border-white/5;
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border-bottom: 1px solid var(--glass-border);
 }
 
-.mobile-nav {
-  @apply fixed bottom-0 left-0 right-0 z-[100] bg-white/90 dark:bg-black/90 backdrop-blur-xl border-t border-slate-200/60 dark:border-white/5;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+.ios-nav {
+  @apply fixed left-0 right-0 z-[100] px-4;
+  bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+}
+
+.ios-nav-pill {
+  @apply flex items-center justify-around mx-auto max-w-sm h-[4.25rem] rounded-[2rem] px-2;
+  background: var(--glass-bg);
+  backdrop-filter: blur(28px) saturate(1.5);
+  -webkit-backdrop-filter: blur(28px) saturate(1.5);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.ios-nav-item {
+  @apply relative flex-1 h-full flex items-center justify-center rounded-[1.5rem] transition-colors;
+  color: var(--muted);
+}
+
+.ios-nav-item-active {
+  color: var(--primary);
+}
+
+.ios-nav-glow {
+  @apply absolute inset-1 rounded-[1.25rem];
+  background: linear-gradient(135deg, rgba(123, 67, 151, 0.18), rgba(249, 168, 37, 0.12));
+  border: 1px solid rgba(123, 67, 151, 0.15);
+}
+
+.hospital-card {
+  @apply relative overflow-hidden rounded-[1.35rem] p-4 transition-transform;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+}
+
+.hospital-card-glow {
+  @apply absolute -right-8 -top-8 w-24 h-24 rounded-full blur-2xl opacity-60 pointer-events-none;
+  background: var(--hospital-muted, rgba(123, 67, 151, 0.15));
+}
+
+.hospital-logo-wrap {
+  @apply shrink-0 rounded-2xl p-0.5;
+  background: linear-gradient(135deg, var(--hospital-accent, var(--primary)), transparent 70%);
+}
+
+.live-chip {
+  @apply inline-flex items-center gap-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full;
+  color: #059669;
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.chip-scroll {
+  @apply flex gap-2 overflow-x-auto pb-1;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.chip-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.region-chip,
+.category-chip {
+  @apply relative shrink-0 px-3.5 py-2 rounded-full text-xs font-bold transition-colors;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.region-chip-active,
+.category-chip-active {
+  color: var(--primary-foreground);
+  border-color: transparent;
+}
+
+.region-chip-bg,
+.category-chip-bg {
+  @apply absolute inset-0 rounded-full;
+  background: linear-gradient(135deg, var(--primary), #9B6BC4);
+}
+
+.category-chip-active .category-chip-bg {
+  box-shadow: 0 4px 16px rgba(123, 67, 151, 0.28);
+}
+
+.brand-gradient {
+  background: linear-gradient(135deg, var(--primary) 0%, #9B6BC4 45%, var(--accent) 100%);
+}
+
+.brand-text-gradient {
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .safe-top {
@@ -49,4 +178,39 @@
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+.queue-token-pill {
+  @apply min-w-[3.5rem] px-2 py-2 rounded-xl text-center font-black text-lg tabular-nums;
+  background: rgba(123, 67, 151, 0.1);
+  color: var(--primary);
+}
+
+.queue-row-tracked {
+  background: linear-gradient(135deg, var(--primary), #8E5AAF);
+  color: white;
+  box-shadow: 0 8px 28px rgba(123, 67, 151, 0.28);
+}
+
+.sheet-surface {
+  background: var(--surface-elevated);
+  border-top: 1px solid var(--border);
+}
+
+.pulse-ring {
+  animation: pulse-ring 2s ease-in-out infinite;
+}
+
+@keyframes pulse-ring {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.04); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.float-slow {
+  animation: float 4s ease-in-out infinite;
 }

@@ -13,7 +13,16 @@ export interface Queue {
   history?: string[];
 }
 
-export type SiteSource = 'hmh' | 'vitalcare' | 'adk' | 'igmh' | 'vilimale' | 'dharumavantha';
+export type SiteSource =
+  | 'hmh'
+  | 'vitalcare'
+  | 'adk'
+  | 'igmh'
+  | 'vilimale'
+  | 'dharumavantha'
+  | 'urh'
+  | 'fah'
+  | 'shah';
 
 export interface UserTracking {
   source: SiteSource;

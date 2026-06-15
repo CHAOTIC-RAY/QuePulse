@@ -144,4 +144,7 @@ export const HOSPITAL_API: Record<SiteSource, string> = {
   igmh: '/api/igmh/queues',
   vilimale: '/api/vilimale/queues',
   dharumavantha: '/api/dharumavantha/queues',
+  urh: '/api/urh/queues',
+  fah: '/api/fah/queues',
+  shah: '/api/shah/queues',
 };

@@ -23,6 +23,9 @@ const API_MAP: Record<string, string> = {
   igmh: '/api/igmh/queues',
   vilimale: '/api/vilimale/queues',
   dharumavantha: '/api/dharumavantha/queues',
+  urh: '/api/urh/queues',
+  fah: '/api/fah/queues',
+  shah: '/api/shah/queues',
 };
 
 let tracking: TrackingPayload | null = null;

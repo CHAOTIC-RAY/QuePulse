@@ -19,10 +19,7 @@ export function LiveTrackingBanner({ tracking }: LiveTrackingBannerProps) {
     
     const fetchStatus = async () => {
       try {
-        let data: Queue[] = [];
-        if (tracking.source === 'hmh') data = await queueService.getExternalHMHQueues();
-        else if (tracking.source === 'vitalcare') data = await queueService.getExternalVitalCareQueues();
-        else if (tracking.source === 'adk') data = await queueService.getExternalADKQueues();
+        const data = await queueService.getQueuesForSource(tracking.source);
         
         if (!mounted) return;
 
@@ -127,10 +124,10 @@ export function LiveTrackingBanner({ tracking }: LiveTrackingBannerProps) {
       initial={{ opacity: 0, y: -20, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ type: "spring", bounce: 0.4 }}
-      className="bg-indigo-600 text-white rounded-3xl p-6 md:p-8 mb-10 shadow-2xl shadow-indigo-600/20 relative overflow-hidden group"
+      className="brand-gradient text-white rounded-3xl p-6 md:p-8 mb-8 shadow-2xl relative overflow-hidden group"
     >
       {/* Decorative bg */}
-      <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-1000" />
+      <div className="absolute -right-10 -top-10 w-40 h-40 bg-[var(--accent)]/20 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-1000 pulse-ring" />
       
       <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="flex items-center gap-5">

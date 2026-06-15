@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Download, X, Smartphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Download, X, Smartphone } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -46,20 +46,20 @@ export function InstallBanner() {
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -12 }}
-        className="mx-4 mb-4 p-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/25 flex items-start gap-3"
+        className="mb-4 p-4 rounded-2xl brand-gradient text-white shadow-lg flex items-start gap-3"
       >
         <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
           <Smartphone className="w-5 h-5" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-bold text-sm">Install QuePulse</p>
-          <p className="text-xs text-blue-100 mt-0.5 leading-relaxed">
-            Add to home screen for app-like alerts. Android: tap Install. iPhone: Share → Add to Home Screen.
+          <p className="text-xs text-white/80 mt-0.5 leading-relaxed">
+            Add to home screen for app-like alerts. Android: tap Install or download the APK from GitHub.
           </p>
           {deferred && (
             <button
               onClick={install}
-              className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-blue-700 text-xs font-bold"
+              className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-[var(--primary)] text-xs font-bold"
             >
               <Download className="w-3.5 h-3.5" /> Install App
             </button>

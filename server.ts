@@ -202,6 +202,108 @@ async function scrapeVitalCare() {
     }));
 }
 
+async function scrapeFAH() {
+  const resp = await fetch('https://fah.gov.mv/TokenStatus', { headers: SCRAPE_HEADERS });
+  if (!resp.ok) throw new Error('FAH queue page unavailable');
+  const html = await resp.text();
+  const queues: any[] = [];
+  const rowRegex = /<tr id="room_\d+">\s*<th[^>]*><span>([^<]+)<\/span><\/th>\s*<td[^>]*id="(\d+)"[^>]*>([^<]+)<\/td>/gi;
+  let match;
+  while ((match = rowRegex.exec(html)) !== null) {
+    const [, roomName, id, token] = match;
+    if (!isActiveToken(token)) continue;
+    queues.push({
+      id: `fah-${id}`,
+      name: roomName.trim(),
+      prefix: '',
+      currentNumber: String(token).trim(),
+      counterInfo: 'Consultation',
+      lastUpdated: new Date(),
+    });
+  }
+  return queues;
+}
+
+async function scrapeURH() {
+  const resp = await fetch('https://q.urh.gov.mv/', { headers: SCRAPE_HEADERS });
+  if (!resp.ok) throw new Error('URH queue page unavailable');
+  const html = await resp.text();
+  const queues: any[] = [];
+
+  for (const block of html.match(/<div class="queue-card">[\s\S]*?<\/div>\s*<\/div>/g) || []) {
+    const name = block.match(/queue-service">\s*([^<]+)/)?.[1]?.trim();
+    const token = block.match(/queue-token">\s*([^<]+)/)?.[1]?.trim();
+    if (!name || !isActiveToken(token)) continue;
+    queues.push({
+      id: `urh-s-${queues.length}`,
+      name,
+      prefix: '',
+      currentNumber: token,
+      counterInfo: 'Service',
+      lastUpdated: new Date(),
+    });
+  }
+
+  for (const block of html.match(/<div class="doctor-card">[\s\S]*?<\/div>\s*<\/div>/g) || []) {
+    const name = block.match(/doctor-name">\s*([^<]+)/)?.[1]?.trim();
+    const designation = block.match(/doctor-designation">\s*([^<]+)/)?.[1]?.trim();
+    const serving = block.match(/serving-pill[^>]*>\s*Serving:\s*([^<\s]+)/)?.[1]?.trim();
+    const roomLine = block.match(/margin-top:8px;">\s*([^<]+)/)?.[1]?.trim() || 'Consultation';
+    if (!name || !isActiveToken(serving)) continue;
+    queues.push({
+      id: `urh-d-${queues.length}`,
+      name,
+      prefix: '',
+      currentNumber: serving,
+      counterInfo: `${designation || 'Doctor'} · ${roomLine}`,
+      lastUpdated: new Date(),
+    });
+  }
+
+  return queues;
+}
+
+async function scrapeShah() {
+  const resp = await fetch('https://q.shah.gov.mv/', { headers: SCRAPE_HEADERS });
+  if (!resp.ok) throw new Error('Sh. Atoll Hospital queue site unavailable');
+  const html = await resp.text();
+  const queues: any[] = [];
+
+  const counterRegex = /<h4[^>]*>\s*([^<]+)\s*<\/h4>[\s\S]*?<h4[^>]*>\s*([^<]+)\s*<\/h4>[\s\S]*?<h4[^>]*>\s*(\d+)\s*<\/h4>/gi;
+  let match;
+  while ((match = counterRegex.exec(html)) !== null) {
+    const [, counter, service, token] = match;
+    if (!isActiveToken(token)) continue;
+    queues.push({
+      id: `shah-${queues.length}`,
+      name: service.trim(),
+      prefix: '',
+      currentNumber: token.trim(),
+      counterInfo: counter.trim(),
+      lastUpdated: new Date(),
+    });
+  }
+
+  const servingRegex = /(?:Room\s*\d+|Reception|Treatment Room)[\s\S]*?Serving:\s*(\d+)/gi;
+  let sMatch;
+  while ((sMatch = servingRegex.exec(html)) !== null) {
+    const token = sMatch[1];
+    const label = sMatch[0].split(/Serving:/)[0].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+    if (!isActiveToken(token)) continue;
+    if (queues.some((q) => q.name === label && q.currentNumber === token)) continue;
+    queues.push({
+      id: `shah-${queues.length}`,
+      name: label || 'Consultation',
+      prefix: '',
+      currentNumber: token,
+      counterInfo: 'OPD',
+      lastUpdated: new Date(),
+    });
+  }
+
+  return queues;
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -257,6 +359,33 @@ async function startServer() {
     } catch (error) {
       console.error('Dharumavantha scrape error:', error);
       res.status(500).json({ error: 'Failed to scrape Dharumavantha queues' });
+    }
+  });
+
+  app.get('/api/urh/queues', async (_req, res) => {
+    try {
+      res.json(await scrapeURH());
+    } catch (error) {
+      console.error('URH scrape error:', error);
+      res.status(500).json({ error: 'Failed to scrape URH queues' });
+    }
+  });
+
+  app.get('/api/fah/queues', async (_req, res) => {
+    try {
+      res.json(await scrapeFAH());
+    } catch (error) {
+      console.error('FAH scrape error:', error);
+      res.status(500).json({ error: 'Failed to scrape FAH queues' });
+    }
+  });
+
+  app.get('/api/shah/queues', async (_req, res) => {
+    try {
+      res.json(await scrapeShah());
+    } catch (error) {
+      console.error('Shah scrape error:', error);
+      res.status(500).json({ error: 'Failed to scrape Sh. Atoll Hospital queues' });
     }
   });
 
