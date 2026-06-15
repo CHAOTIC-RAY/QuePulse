@@ -33,4 +33,6 @@ export interface UserTracking {
   myToken: string;
   notifyThreshold: number;
   roomNumber?: string; // Optional room number for tracking
+  /** Keep live tracking notification + background polling when app is closed (Android) */
+  alwaysOnNotifications?: boolean;
 }

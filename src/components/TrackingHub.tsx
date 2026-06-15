@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Bell, X, Info, Settings2, ShieldCheck, Hash, Trash2, Vibrate, BellRing } from 'lucide-react';
+import { Bell, X, Info, Settings2, ShieldCheck, Hash, Trash2, Vibrate, BellRing, Pin } from 'lucide-react';
 import { SiteSource, UserTracking } from '../types';
 import { HOSPITALS } from '../data/hospitals';
 import {
@@ -10,6 +10,8 @@ import {
   testNotification,
   syncTrackingToServiceWorker,
 } from '../lib/notifications';
+import { getAlwaysOnNotifications, setAlwaysOnNotifications } from '../lib/alwaysOn';
+import { isNativeApp } from '../lib/platform';
 
 interface TrackingHubProps {
   isOpen: boolean;
@@ -28,6 +30,7 @@ export function TrackingHub({ isOpen, onClose, currentSource, tracking, onUpdate
   const [selectedSource, setSelectedSource] = useState<SiteSource>('hmh');
   const [notifMessage, setNotifMessage] = useState<{ text: string; type: 'error' | 'success' } | null>(null);
   const [permState, setPermState] = useState(getNotificationState());
+  const [alwaysOn, setAlwaysOn] = useState(() => getAlwaysOnNotifications());
 
   useEffect(() => {
     if (currentSource) setSelectedSource(currentSource);
@@ -36,13 +39,27 @@ export function TrackingHub({ isOpen, onClose, currentSource, tracking, onUpdate
   useEffect(() => {
     if (isOpen) {
       refreshNotificationState().then(setPermState);
+      setAlwaysOn(tracking?.alwaysOnNotifications ?? getAlwaysOnNotifications());
     }
-  }, [isOpen]);
+  }, [isOpen, tracking?.alwaysOnNotifications]);
 
   const updateThreshold = (val: number) => {
     setThreshold(val);
     if (tracking) onUpdateTracking({ ...tracking, notifyThreshold: val });
     localStorage.setItem('mv_queue_notify_threshold', val.toString());
+  };
+
+  const toggleAlwaysOn = async (enabled: boolean) => {
+    setAlwaysOn(enabled);
+    setAlwaysOnNotifications(enabled);
+    if (tracking) {
+      const next = { ...tracking, alwaysOnNotifications: enabled };
+      onUpdateTracking(next);
+      syncTrackingToServiceWorker(next);
+    }
+    if (enabled && permState !== 'granted') {
+      await enableNotifications();
+    }
   };
 
   const enableNotifications = async () => {
@@ -65,6 +82,7 @@ export function TrackingHub({ isOpen, onClose, currentSource, tracking, onUpdate
       isGlobal: true,
       myToken: globalTokenInput,
       notifyThreshold: threshold,
+      alwaysOnNotifications: alwaysOn,
     };
     onUpdateTracking(next);
     syncTrackingToServiceWorker(next);
@@ -210,6 +228,38 @@ export function TrackingHub({ isOpen, onClose, currentSource, tracking, onUpdate
                 </div>
                 <p className="text-[10px] text-[var(--muted)] mt-2">Notify when your token is this many numbers away</p>
               </div>
+
+              {isNativeApp() && (
+                <div
+                  className="p-4 rounded-2xl border border-[var(--border)] flex items-center justify-between gap-3"
+                  style={{ background: 'var(--surface)' }}
+                >
+                  <div className="flex items-start gap-3 min-w-0">
+                    <Pin className="w-4 h-4 text-[var(--primary)] shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-bold">Always-on notification</p>
+                      <p className="text-[10px] text-[var(--muted)] leading-relaxed mt-0.5">
+                        Live token, queue position & ETA in your notification shade — keeps tracking when the app is closed.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={alwaysOn}
+                    onClick={() => toggleAlwaysOn(!alwaysOn)}
+                    className={`relative w-11 h-6 rounded-full shrink-0 transition-colors ${
+                      alwaysOn ? 'brand-gradient' : 'bg-[var(--border)]'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                        alwaysOn ? 'translate-x-5' : ''
+                      }`}
+                    />
+                  </button>
+                </div>
+              )}
 
               {tracking ? (
                 <div className="p-4 rounded-2xl border border-[var(--primary)]/20" style={{ background: 'rgba(123,67,151,0.08)' }}>

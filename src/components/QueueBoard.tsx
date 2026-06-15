@@ -18,6 +18,7 @@ import {
   showAlert,
   syncTrackingToServiceWorker,
 } from '../lib/notifications';
+import { getAlwaysOnNotifications } from '../lib/alwaysOn';
 
 interface QueueBoardProps {
   source: SiteSource;
@@ -94,6 +95,7 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
       queueId: activeSelectedQueue.id,
       myToken: setupToken,
       notifyThreshold: setupThreshold,
+      alwaysOnNotifications: getAlwaysOnNotifications(),
     };
     onUpdateTracking(next);
     syncTrackingToServiceWorker(next);

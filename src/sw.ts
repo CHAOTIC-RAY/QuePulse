@@ -40,6 +40,20 @@ function parseToken(value: string): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
+function buildAlertBody(myToken: string, q: { id: string; currentNumber: string; counterInfo: string; name: string }): string {
+  const target = parseToken(myToken);
+  const current = parseToken(q.currentNumber);
+  const roomMatch = q.counterInfo.match(/Room\s+([A-Za-z0-9]+)/i) || q.name.match(/ROOM\s+([A-Za-z0-9]+)/i);
+  const room = roomMatch ? `Room ${roomMatch[1]}` : q.name;
+  const tokensLeft = target !== null && current !== null ? Math.max(0, target - current) : null;
+  if (tokensLeft === 0) return `Your turn! Now serving ${q.currentNumber} · ${room}`;
+  if (tokensLeft !== null) {
+    const ahead = tokensLeft === 1 ? '1 ahead' : `${tokensLeft} ahead`;
+    return `Now ${q.currentNumber} · ${room} · ${ahead}`;
+  }
+  return `Now serving ${q.currentNumber} · ${room}. Your token: ${myToken}.`;
+}
+
 async function pollQueues() {
   if (!tracking) return;
   const path = API_PATHS[tracking.source];
@@ -67,7 +81,7 @@ async function pollQueues() {
       await self.registration.showNotification(
         tracking.isGlobal ? `Token near — ${q.name}` : 'Your turn is near!',
         {
-          body: `Serving ${q.currentNumber} at ${q.name}. Your token: ${tracking.myToken}.`,
+          body: buildAlertBody(tracking.myToken, q),
           icon: '/icons/icon-192.png',
           badge: '/icons/icon-192.png',
           tag: alertId,
@@ -85,7 +99,7 @@ async function pollQueues() {
 
 function startPolling() {
   stopPolling();
-  pollTimer = setInterval(pollQueues, 12000);
+  pollTimer = setInterval(pollQueues, 5000);
   pollQueues();
 }
 

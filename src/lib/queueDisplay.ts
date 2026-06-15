@@ -17,3 +17,8 @@ export function formatNowServing(queue: Queue | null | undefined): string {
   if (!queue?.currentNumber) return '—';
   return `${queue.currentNumber} · ${extractRoomLabel(queue)}`;
 }
+
+export function getServingParts(queue: Queue | null | undefined): { token: string; room: string } | null {
+  if (!queue?.currentNumber) return null;
+  return { token: queue.currentNumber, room: extractRoomLabel(queue) };
+}

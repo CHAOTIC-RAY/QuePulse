@@ -20,7 +20,8 @@ import {
   syncTrackingToServiceWorker,
 } from '../lib/notifications';
 import { recordQueueTimestamps, getRoomEtaText } from '../lib/queueTiming';
-import { formatNowServing } from '../lib/queueDisplay';
+import { getServingParts } from '../lib/queueDisplay';
+import { getAlwaysOnNotifications } from '../lib/alwaysOn';
 import { BrandLogo } from './BrandLogo';
 import { useTheme } from '../hooks/useTheme';
 
@@ -126,6 +127,7 @@ export function MobileDashboard({
       isGlobal: true,
       myToken: tokenInput.trim(),
       notifyThreshold: threshold,
+      alwaysOnNotifications: getAlwaysOnNotifications(),
     };
     onUpdateTracking(next);
     syncTrackingToServiceWorker(next);
@@ -205,13 +207,30 @@ export function MobileDashboard({
               <div className="grid grid-cols-2 gap-3">
                 <div className="dash-stat-pill">
                   <p className="dash-stat-label">Now serving</p>
-                  <p className="dash-stat-value text-[var(--primary)] text-base leading-tight">
-                    {featuredLoading ? '…' : formatNowServing(featuredQueue)}
-                  </p>
+                  {featuredLoading ? (
+                    <p className="dash-stat-value text-base">…</p>
+                  ) : (
+                    (() => {
+                      const parts = getServingParts(featuredQueue);
+                      if (!parts) return <p className="dash-stat-value text-base">—</p>;
+                      return (
+                        <p className="dash-stat-value-serving">
+                          <span className="dash-stat-token">{parts.token}</span>
+                          <span className="dash-stat-room"> · {parts.room}</span>
+                        </p>
+                      );
+                    })()
+                  )}
                 </div>
                 <div className="dash-stat-pill">
                   <p className="dash-stat-label">Room ETA</p>
-                  <p className="dash-stat-value text-base leading-tight">
+                  <p
+                    className={
+                      featuredEta === 'Analyzing…'
+                        ? 'dash-stat-eta-muted'
+                        : 'dash-stat-value text-base leading-tight'
+                    }
+                  >
                     {featuredLoading ? '…' : featuredEta ?? '—'}
                   </p>
                 </div>
@@ -259,9 +278,16 @@ export function MobileDashboard({
                   </p>
                   <p className="text-sm opacity-85 leading-relaxed">
                     Now serving{' '}
-                    <span className="font-black tabular-nums">
-                      {formatNowServing(servingQueue)}
-                    </span>
+                    {(() => {
+                      const parts = getServingParts(servingQueue);
+                      if (!parts) return <span className="font-black">…</span>;
+                      return (
+                        <>
+                          <span className="font-black tabular-nums">{parts.token}</span>
+                          <span className="text-[11px] font-semibold opacity-75"> · {parts.room}</span>
+                        </>
+                      );
+                    })()}
                   </p>
                 </div>
                 <ChevronRight className="w-5 h-5 opacity-75 shrink-0" />

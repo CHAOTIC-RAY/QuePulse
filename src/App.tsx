@@ -28,7 +28,12 @@ export default function App() {
   const [tracking, setTracking] = useState<UserTracking | null>(() => {
     try {
       const saved = localStorage.getItem('mv_queue_tracking');
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const parsed = JSON.parse(saved) as UserTracking;
+      if (parsed.alwaysOnNotifications === undefined) {
+        parsed.alwaysOnNotifications = localStorage.getItem('mv_queue_always_on') === 'true';
+      }
+      return parsed;
     } catch {
       return null;
     }

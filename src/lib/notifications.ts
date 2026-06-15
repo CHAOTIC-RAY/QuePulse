@@ -2,11 +2,19 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { UserTracking, SiteSource, Queue } from '../types';
 import { apiUrl } from './apiBase';
 import { isNativeApp } from './platform';
-import { formatNowServing, extractRoomLabel } from './queueDisplay';
+import { extractRoomLabel } from './queueDisplay';
+import { buildAlertBody } from './trackingStatus';
+import {
+  startBackgroundTracking,
+  stopBackgroundTracking,
+} from './nativeTrackingService';
 
 const ICON = '/icons/icon-192.png';
 const ANDROID_CHANNEL_ID = 'queue-alerts';
+const ANDROID_TRACKING_CHANNEL_ID = 'queue-tracking-live';
+export const TRACKING_STATUS_NOTIFICATION_ID = 10001;
 let nativeChannelReady = false;
+let trackingChannelReady = false;
 
 export type NotificationState = 'unsupported' | 'default' | 'granted' | 'denied';
 
@@ -28,6 +36,20 @@ async function ensureNativeChannel(): Promise<void> {
     sound: 'default',
   });
   nativeChannelReady = true;
+}
+
+async function ensureTrackingChannel(): Promise<void> {
+  if (!isNativeApp() || trackingChannelReady) return;
+  await LocalNotifications.createChannel({
+    id: ANDROID_TRACKING_CHANNEL_ID,
+    name: 'Live queue tracking',
+    description: 'Live token position while you track a queue',
+    importance: 3,
+    visibility: 1,
+    vibration: false,
+    sound: undefined,
+  });
+  trackingChannelReady = true;
 }
 
 function notificationIdFromTag(tag: string): number {
@@ -56,6 +78,7 @@ export async function refreshNotificationState(): Promise<NotificationState> {
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (isNativeApp()) {
     await ensureNativeChannel();
+    await ensureTrackingChannel();
     return null;
   }
   if (!('serviceWorker' in navigator)) return null;
@@ -71,6 +94,7 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
 export async function requestNotificationPermission(): Promise<NotificationState> {
   if (isNativeApp()) {
     await ensureNativeChannel();
+    await ensureTrackingChannel();
     const { display } = await LocalNotifications.requestPermissions();
     return mapNativePermission(display);
   }
@@ -96,7 +120,7 @@ async function showNativeAlert(
           channelId: ANDROID_CHANNEL_ID,
           smallIcon: 'ic_stat_icon',
           iconColor: '#2563eb',
-          schedule: { at: new Date(Date.now() + 250) },
+          schedule: { at: new Date() },
           extra: { url: options?.url || '/' },
         },
       ],
@@ -105,6 +129,50 @@ async function showNativeAlert(
   } catch {
     return false;
   }
+}
+
+export async function updateTrackingNotification(
+  title: string,
+  body: string,
+  alwaysOn: boolean
+): Promise<void> {
+  if (!isNativeApp()) return;
+
+  const state = await refreshNotificationState();
+  if (state !== 'granted') return;
+
+  await ensureTrackingChannel();
+  await LocalNotifications.schedule({
+    notifications: [
+      {
+        id: TRACKING_STATUS_NOTIFICATION_ID,
+        title,
+        body,
+        channelId: ANDROID_TRACKING_CHANNEL_ID,
+        smallIcon: 'ic_stat_icon',
+        iconColor: '#2563eb',
+        ongoing: true,
+        autoCancel: false,
+        schedule: { at: new Date() },
+      },
+    ],
+  });
+
+  if (alwaysOn) {
+    await startBackgroundTracking(title, body);
+  }
+}
+
+export async function clearTrackingNotification(): Promise<void> {
+  if (!isNativeApp()) return;
+  try {
+    await LocalNotifications.cancel({
+      notifications: [{ id: TRACKING_STATUS_NOTIFICATION_ID }],
+    });
+  } catch {
+    // ignore
+  }
+  await stopBackgroundTracking();
 }
 
 export async function showAlert(
@@ -222,12 +290,11 @@ export function checkTrackingAlert(
     if (diff < 0 || diff > tracking.notifyThreshold) return null;
     const alertId = `${tracking.isGlobal ? 'global' : tracking.queueId}-${q.id}-${q.currentNumber}`;
     if (alertId === lastAlertId) return null;
-    const serving = formatNowServing(q);
     return {
       shouldAlert: true,
       alertId,
       title: tracking.isGlobal ? `Token near — ${extractRoomLabel(q)}` : 'Your turn is near!',
-      body: `Now serving ${serving}. Your token: ${tracking.myToken}.`,
+      body: buildAlertBody(tracking, q),
       queueName: q.name,
     };
   };

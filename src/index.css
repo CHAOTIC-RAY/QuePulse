@@ -426,6 +426,30 @@
   line-height: 1.15;
 }
 
+.dash-stat-value-serving {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.dash-stat-token {
+  font-size: 1.125rem;
+  color: var(--primary);
+}
+
+.dash-stat-room {
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.dash-stat-eta-muted {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted);
+  line-height: 1.3;
+}
+
 .dash-hero-cta {
   @apply flex items-center justify-center gap-2 w-full min-h-11 rounded-xl text-sm font-bold text-white;
   background: linear-gradient(135deg, var(--hospital-accent, var(--primary)), var(--primary));
