@@ -20,7 +20,7 @@ export function BrandLogo({ size = 'md', showText = true, className = '' }: Bran
   return (
     <span className={`inline-flex items-center gap-2.5 ${className}`}>
       <img
-        src="/icons/icon.png"
+        src="/icons/logo-transparent.png"
         alt="QuePulse"
         className={`${sizes[size]} object-contain shrink-0`}
         width={size === 'lg' ? 56 : size === 'md' ? 40 : 32}

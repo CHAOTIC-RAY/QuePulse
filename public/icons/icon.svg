@@ -1,5 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <circle cx="256" cy="232" r="118" stroke="#F9A825" stroke-width="22" fill="none"/>
-  <circle cx="256" cy="232" r="92" stroke="#7B4397" stroke-width="18" fill="none"/>
-  <path d="M256 324 L256 392 L288 360 L320 408 L352 352 L384 392" stroke="#7B4397" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Orange outer ring (Q body) -->
+  <path
+    d="M 128 210 A 118 118 0 1 1 372 268"
+    stroke="#F9A825"
+    stroke-width="24"
+    stroke-linecap="round"
+    fill="none"
+  />
+  <!-- Purple inner ring -->
+  <path
+    d="M 152 218 A 94 94 0 1 1 348 258"
+    stroke="#7B4397"
+    stroke-width="20"
+    stroke-linecap="round"
+    fill="none"
+  />
+  <!-- Purple pulse tail -->
+  <path
+    d="M 262 352 L 262 392 L 286 372 L 308 408 L 332 366 L 362 398"
+    stroke="#7B4397"
+    stroke-width="20"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
 </svg>

@@ -7,7 +7,7 @@
     "dev": "tsx server.ts",
     "build": "npm run icons && vite build",
     "icons": "node scripts/gen-icons.mjs",
-    "build:mobile": "npm run build && npx cap sync android",
+    "build:mobile": "npm run icons && npm run build && npx cap sync android",
     "build:apk": "npm run build:mobile && cd android && ./gradlew assembleDebug",
     "preview": "npm run build && wrangler dev",
     "clean": "rm -rf dist",

@@ -3,30 +3,88 @@ import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
 const dir = join(process.cwd(), 'public/icons');
+const androidRes = join(process.cwd(), 'android/app/src/main/res');
 mkdirSync(dir, { recursive: true });
 
 const markSvg = readFileSync(join(dir, 'logo-mark.svg'));
 
-// Transparent PNGs for PWA / favicon / notifications
-for (const size of [192, 512]) {
-  await sharp(markSvg).resize(size, size).png().toFile(join(dir, `icon-${size}.png`));
+/** Transparent logo for in-app UI (header, sidebar) */
+async function writeTransparentLogo() {
+  for (const size of [128, 256, 512]) {
+    await sharp(markSvg).resize(size, size).png().toFile(join(dir, `logo-transparent-${size}.png`));
+  }
+  await sharp(markSvg).resize(256, 256).png().toFile(join(dir, 'logo-transparent.png'));
 }
 
-await sharp(markSvg).resize(512, 512).png().toFile(join(dir, 'icon.png'));
+/** White rounded-square app icon (PWA install, favicon, notifications) */
+async function composeAppIcon(size, logoScale = 0.68, cornerRadius = 0.2) {
+  const logoSize = Math.round(size * logoScale);
+  const pad = Math.round((size - logoSize) / 2);
+  const logo = await sharp(markSvg).resize(logoSize, logoSize).png().toBuffer();
+  const radius = Math.round(size * cornerRadius);
 
-// Maskable icon with safe padding on transparent canvas
-const maskableSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <circle cx="256" cy="220" r="100" stroke="#F9A825" stroke-width="20" fill="none"/>
-  <circle cx="256" cy="220" r="78" stroke="#7B4397" stroke-width="16" fill="none"/>
-  <path d="M256 300 L256 360 L284 332 L312 372 L338 328 L364 360" stroke="#7B4397" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-</svg>`;
+  const whitePlate = Buffer.from(
+    `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="${size}" height="${size}" rx="${radius}" fill="#FFFFFF"/>
+    </svg>`
+  );
 
-await sharp(Buffer.from(maskableSvg)).resize(512, 512).png().toFile(join(dir, 'icon-maskable-512.png'));
+  return sharp(whitePlate).composite([{ input: logo, top: pad, left: pad }]).png().toBuffer();
+}
 
-// Wordmark-style transparent PNG for header (logo + text is separate in UI)
-writeFileSync(
-  join(dir, 'icon.svg'),
-  markSvg.toString()
-);
+async function writeAppIcons() {
+  const icon192 = await composeAppIcon(192);
+  const icon512 = await composeAppIcon(512);
+  const maskable512 = await composeAppIcon(512, 0.58, 0.18);
 
-console.log('Generated transparent PNG icons in public/icons/');
+  await sharp(icon192).toFile(join(dir, 'icon-192.png'));
+  await sharp(icon512).toFile(join(dir, 'icon-512.png'));
+  await sharp(maskable512).toFile(join(dir, 'icon-maskable-512.png'));
+  await sharp(icon512).toFile(join(dir, 'icon.png'));
+}
+
+/** Android launcher mipmaps (full icon with white background) */
+async function writeAndroidIcons() {
+  const densities = {
+    'mipmap-mdpi': 48,
+    'mipmap-hdpi': 72,
+    'mipmap-xhdpi': 96,
+    'mipmap-xxhdpi': 144,
+    'mipmap-xxxhdpi': 192,
+  };
+
+  for (const [folder, size] of Object.entries(densities)) {
+    const outDir = join(androidRes, folder);
+    mkdirSync(outDir, { recursive: true });
+    const buf = await composeAppIcon(size, 0.68, 0.2);
+    for (const name of ['ic_launcher.png', 'ic_launcher_round.png', 'ic_launcher_foreground.png']) {
+      await sharp(buf).toFile(join(outDir, name));
+    }
+  }
+
+  // Adaptive icon foreground: transparent logo only (background is white in XML)
+  const fgSize = 432;
+  const logoSize = Math.round(fgSize * 0.55);
+  const pad = Math.round((fgSize - logoSize) / 2);
+  const fgLogo = await sharp(markSvg).resize(logoSize, logoSize).png().toBuffer();
+  const transparent = await sharp({
+    create: { width: fgSize, height: fgSize, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+  })
+    .composite([{ input: fgLogo, top: pad, left: pad }])
+    .png()
+    .toBuffer();
+
+  await sharp(transparent).toFile(join(androidRes, 'mipmap-xxxhdpi/ic_launcher_foreground.png'));
+  for (const folder of ['mipmap-mdpi', 'mipmap-hdpi', 'mipmap-xhdpi', 'mipmap-xxhdpi']) {
+    const size = { 'mipmap-mdpi': 108, 'mipmap-hdpi': 162, 'mipmap-xhdpi': 216, 'mipmap-xxhdpi': 324 }[folder];
+    await sharp(transparent).resize(size, size).toFile(join(androidRes, `${folder}/ic_launcher_foreground.png`));
+  }
+}
+
+writeFileSync(join(dir, 'icon.svg'), markSvg.toString());
+
+await writeTransparentLogo();
+await writeAppIcons();
+await writeAndroidIcons();
+
+console.log('Generated transparent UI logo + white-background app icons');
