@@ -1,127 +1,239 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
-import axios from 'axios';
-import * as cheerio from 'cheerio';
+
+const SCRAPE_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+  Accept: 'application/json, text/plain, */*',
+};
+
+const QUEUEBEE = {
+  base: 'https://q04-mv.qbe.ee',
+  configPath: '/config/igmh/server.json',
+  branches: {
+    igmh: 'W3LL9e6oMktRc1KK1DrwJA==',
+    vilimale: 'KeB0iLWtjjvGBrxkebx/6A==',
+    dharumavantha: 'toKrLsBreyiInmDONtYdZw==',
+  },
+};
+
+let queuebeeCreds: { client_id: string; country_code: string } | null = null;
+let queuebeeCredsAt = 0;
+
+async function getQueueBeeCreds() {
+  if (queuebeeCreds && Date.now() - queuebeeCredsAt < 3600000) return queuebeeCreds;
+  const resp = await fetch(`${QUEUEBEE.base}${QUEUEBEE.configPath}`, { headers: SCRAPE_HEADERS });
+  const data = await resp.json();
+  queuebeeCreds = {
+    client_id: data.server.client,
+    country_code: data.server.country,
+  };
+  queuebeeCredsAt = Date.now();
+  return queuebeeCreds;
+}
+
+function reqUid() {
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+}
+
+async function scrapeQueueBeeBranch(hospital: keyof typeof QUEUEBEE.branches, prefix: string) {
+  const creds = await getQueueBeeCreds();
+  const branchId = QUEUEBEE.branches[hospital];
+
+  const body = new FormData();
+  body.append('req_uid', reqUid());
+  body.append('country_code', creds.country_code);
+  body.append('client_id', creds.client_id);
+  body.append('branch_id', branchId);
+
+  const resp = await fetch(`${QUEUEBEE.base}/api_qapp/listservice`, {
+    method: 'POST',
+    headers: SCRAPE_HEADERS,
+    body,
+  });
+
+  const data = await resp.json();
+  if (data.status !== 200 || !Array.isArray(data.data)) return [];
+
+  const queues: any[] = [];
+  for (const dept of data.data) {
+    for (const svc of dept.dept_service_data || []) {
+      const token = svc.serv_current_serving;
+      if (!token) continue;
+      queues.push({
+        id: `${prefix}-${svc.serv_id}`,
+        name: svc.serv_label || svc.serv_name,
+        prefix: '',
+        currentNumber: token,
+        counterInfo: dept.dept_label || 'Live',
+        lastUpdated: new Date(),
+      });
+    }
+  }
+  return queues;
+}
+
+async function scrapeHMH() {
+  const [deptResp, labResp] = await Promise.all([
+    fetch('https://hmh.gov.mv/api/queue/dept/0', { headers: SCRAPE_HEADERS }),
+    fetch('https://hmh.gov.mv/api/queue/lab', { headers: SCRAPE_HEADERS }),
+  ]);
+
+  const queues: any[] = [];
+  const deptData = await deptResp.json();
+  if (deptData?.success && Array.isArray(deptData.data)) {
+    for (const item of deptData.data) {
+      queues.push({
+        id: `hmh-${item.RoomID}`,
+        name: item.RoomLabel,
+        prefix: '',
+        currentNumber: item.TokenNo,
+        counterInfo: item.Pq === '1' ? 'Priority' : 'Live',
+        lastUpdated: new Date(item.CalledOn),
+      });
+    }
+  }
+
+  const labData = await labResp.json();
+  if (Array.isArray(labData?.queues)) {
+    for (const item of labData.queues) {
+      if (!item.currentToken && !item.TokenNo) continue;
+      queues.push({
+        id: `hmh-lab-${item.RoomID || item.id || item.RoomLabel}`,
+        name: item.RoomLabel || item.name || 'Lab Service',
+        prefix: '',
+        currentNumber: String(item.currentToken || item.TokenNo),
+        counterInfo: 'Services',
+        lastUpdated: new Date(),
+      });
+    }
+  }
+  return queues;
+}
+
+async function scrapeADK() {
+  const [serviceResp, roomResp] = await Promise.all([
+    fetch('https://www.adkhospital.mv/api/token-queues', { headers: SCRAPE_HEADERS }),
+    fetch('https://www.adkhospital.mv/api/token-rooms', { headers: SCRAPE_HEADERS }),
+  ]);
+
+  const serviceData = await serviceResp.json();
+  const roomData = await roomResp.json();
+  const queues: any[] = [];
+
+  if (Array.isArray(serviceData?.queues)) {
+    for (const q of serviceData.queues) {
+      if (!q.currentattend) continue;
+      queues.push({
+        id: `adk-s-${q.serviceid}`,
+        name: q.servicename.split(':')[0].trim(),
+        prefix: '',
+        currentNumber: q.currentattend,
+        counterInfo: 'Service',
+        lastUpdated: new Date(),
+      });
+    }
+  }
+
+  if (Array.isArray(roomData?.rooms)) {
+    for (const r of roomData.rooms) {
+      if (!r.token || r.token === '-') continue;
+      queues.push({
+        id: `adk-r-${r.id}`,
+        name: r.doctorName || r.department || `Room ${r.room}`,
+        prefix: '',
+        currentNumber: r.token,
+        counterInfo: `${r.department ? r.department + ' - ' : ''}Room ${r.room}`,
+        lastUpdated: new Date(r.lastUpdated || Date.now()),
+      });
+    }
+  }
+  return queues;
+}
+
+async function scrapeVitalCare() {
+  const resp = await fetch('https://token.vitalcare.com.mv/index.aspx/GetTokenData', {
+    method: 'POST',
+    headers: {
+      ...SCRAPE_HEADERS,
+      'Content-Type': 'application/json; charset=utf-8',
+    },
+    body: JSON.stringify({}),
+  });
+
+  const data = await resp.json();
+  if (!Array.isArray(data.d)) return [];
+
+  return data.d
+    .filter((item: any) => item.TokenNumber !== 0)
+    .map((item: any, i: number) => ({
+      id: `vc-${i}`,
+      name: item.DocName || 'Consultation',
+      prefix: '',
+      currentNumber: String(item.TokenNumber),
+      counterInfo: `Room ${item.RoomNumber} (${item.RoomFloor})`,
+      lastUpdated: new Date(),
+    }));
+}
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // HMH Data Scraper
-  app.get('/api/hmh/queues', async (req, res) => {
+  app.get('/api/hmh/queues', async (_req, res) => {
     try {
-      const token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiI5IiwianRpIjoiYzUwMDUwZWM2ZTI0OWRiMDUwZjhjOTU3YmU2YWJjMTJhMDQ5OWUwYjJiYzEyYzkyOTNlZGIxNWE1MmZkMTY4ZWExYmE4N2E0NjNlZTQxYmQiLCJpYXQiOjE3NjgyMzAzMTkuNDI1MTA4LCJuYmYiOjE3NjgyMzAzMTkuNDI1MTEzLCJleHAiOjE3OTk3NjYzMTkuNDA5Miwic3ViIjoiIiwic2NvcGVzIjpbXX0.rvD_FtiWl4a9QWdempukZMq36Q_28tDqUkN8Rj2W-Nxzu_9pv37QWrZXhgtpYyd29yE-ij1lE6QEOMqUK0Yu7M9lYwCr6x-MK5ieRCop6dIGlKDla3PrE11mpFvrv768dcmfmAP449eTVr_lvqvWoRHiKMSCr_k9VnvocrKHCbpK-YtycpUpZ7n6aIynE8JIIIa7iYlXMAiRy3bs49VplHM8kmwk0hSZhgYslRo9fFk24UjoSbTLJeaNXAfmzEtCsTezQXWByrI9Om3VIvQeO1gJHya7kT2SSQJ-VfZyVT5IPtrgJL6HOp_qTgHt8Ozlvz-F4nyaf9TQQNsYy3TqKynK_b-lksdDbedQQLTo534v4PS1ZVpK2dAb7Zye-1TWfjgUqXgHahN_sAFarnac2mHGo7c1G8h7aLap5OXAnLLrukqLytLR0eg4Mg49rPrz7FdzN8OT8b5_Wl2nW_-J-ETcCzYar0Z_-w-fmWYjZJnx-C6Gm8w1P2V60cj42fG4YG_bRyLkw2MXy24mfO_64eM_0uM0fPbePIhiio7h47T0xRI19fYwZYDPayfyjA-EcdyiX9JHwrC5pRn8WME8uvIqGnUH99LM2MpJyy2PSOBWhJKsKV8HYVCtvCjFDCnFo1-SY4ppBbHroJXzcIRqndti7xjVylc6uUL-5RLNAm4';
-      const url = 'https://api.hmh.gov.mv/api/queue/0';
-      
-      const response = await axios.get(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-        },
-        timeout: 10000
-      });
-
-      if (response.data && response.data.success && Array.isArray(response.data.data)) {
-        const queues = response.data.data.map((item: any) => ({
-          id: `hmh-${item.RoomID}`,
-          name: item.RoomLabel,
-          prefix: '',
-          currentNumber: item.TokenNo,
-          counterInfo: item.Pq === "1" ? 'Priority' : 'Live',
-          lastUpdated: new Date(item.CalledOn)
-        }));
-        return res.json(queues);
-      }
-
-      res.json([]);
+      res.json(await scrapeHMH());
     } catch (error) {
-      console.error('HMH API Error:', error);
-      res.status(500).json({ error: 'Failed to fetch HMH queue' });
+      console.error('HMH scrape error:', error);
+      res.status(500).json({ error: 'Failed to scrape HMH queues' });
     }
   });
 
-  // Vital Care Data Scraper
-  app.get('/api/vitalcare/tokens', async (req, res) => {
+  app.get('/api/vitalcare/tokens', async (_req, res) => {
     try {
-      // Vital Care uses a .NET AJAX call
-      const response = await axios.post('https://token.vitalcare.com.mv/index.aspx/GetTokenData', {}, {
-        headers: {
-          'Content-Type': 'application/json; charset=utf-8',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-        },
-        timeout: 10000
-      });
-      
-      const rawData = response.data.d; // This is an array of objects
-      if (!rawData || !Array.isArray(rawData)) return res.json([]);
-
-      const queues = rawData.map((item: any, i: number) => ({
-        id: `vc-${i}`,
-        name: item.DocName || 'Consultation',
-        prefix: '',
-        currentNumber: item.TokenNumber === 0 ? 'CLOSED' : item.TokenNumber.toString(),
-        counterInfo: `Room ${item.RoomNumber} (${item.RoomFloor})`,
-        lastUpdated: new Date()
-      }));
-
-      res.json(queues);
+      res.json(await scrapeVitalCare());
     } catch (error) {
-       console.error('Vital Care AJAX Error:', error);
-       res.status(500).json({ error: 'Failed to fetch Vital Care' });
+      console.error('VitalCare scrape error:', error);
+      res.status(500).json({ error: 'Failed to scrape Vital Care' });
     }
   });
 
-  // ADK Hospital Data Scraper
-  app.get('/api/adk/queues', async (req, res) => {
+  app.get('/api/adk/queues', async (_req, res) => {
     try {
-      const [serviceResp, roomResp] = await Promise.all([
-        axios.get('https://www.adkhospital.mv/api/token-queues', { timeout: 10000 }),
-        axios.get('https://www.adkhospital.mv/api/token-rooms', { timeout: 10000 })
-      ]);
-
-      const queues: any[] = [];
-
-      // Process Service Queues
-      if (serviceResp.data && Array.isArray(serviceResp.data.queues)) {
-        serviceResp.data.queues.forEach((q: any) => {
-           if (q.currentattend) {
-             queues.push({
-               id: `adk-s-${q.serviceid}`,
-               name: q.servicename.split(':')[0].trim(), // Clean up name
-               prefix: '',
-               currentNumber: q.currentattend,
-               counterInfo: 'Service',
-               lastUpdated: new Date()
-             });
-           }
-        });
-      }
-
-      // Process Room/Consultation Queues
-      if (roomResp.data && Array.isArray(roomResp.data.rooms)) {
-        roomResp.data.rooms.forEach((r: any) => {
-          if (r.token && r.token !== '-') {
-            queues.push({
-              id: `adk-r-${r.id}`,
-              name: r.doctorName || r.department || `Room ${r.room}`,
-              prefix: '',
-              currentNumber: r.token,
-              counterInfo: `${r.department ? r.department + ' - ' : ''}Room ${r.room}`,
-              lastUpdated: new Date(r.lastUpdated || new Date())
-            });
-          }
-        });
-      }
-
-      res.json(queues);
+      res.json(await scrapeADK());
     } catch (error) {
-      console.error('ADK Scrape Error:', error);
-      res.status(500).json({ error: 'Failed to fetch ADK queues' });
+      console.error('ADK scrape error:', error);
+      res.status(500).json({ error: 'Failed to scrape ADK queues' });
     }
   });
 
-  // Vite middleware for development
+  app.get('/api/igmh/queues', async (_req, res) => {
+    try {
+      res.json(await scrapeQueueBeeBranch('igmh', 'igmh'));
+    } catch (error) {
+      console.error('IGMH scrape error:', error);
+      res.status(500).json({ error: 'Failed to scrape IGMH queues' });
+    }
+  });
+
+  app.get('/api/vilimale/queues', async (_req, res) => {
+    try {
+      res.json(await scrapeQueueBeeBranch('vilimale', 'vilimale'));
+    } catch (error) {
+      console.error('Vilimale scrape error:', error);
+      res.status(500).json({ error: 'Failed to scrape Vilimale queues' });
+    }
+  });
+
+  app.get('/api/dharumavantha/queues', async (_req, res) => {
+    try {
+      res.json(await scrapeQueueBeeBranch('dharumavantha', 'dharumavantha'));
+    } catch (error) {
+      console.error('Dharumavantha scrape error:', error);
+      res.status(500).json({ error: 'Failed to scrape Dharumavantha queues' });
+    }
+  });
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -131,7 +243,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

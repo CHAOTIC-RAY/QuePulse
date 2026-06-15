@@ -60,9 +60,11 @@ export const queueService = {
 
   getExternalVilimaleQueues: async (): Promise<Queue[]> => {
     try {
-      // Vilimale Hospital - part of Male' City Group
-      // May share API with IGMH or have separate endpoint
-      return [];
+      const response = await fetch('/api/vilimale/queues');
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status}`);
+      }
+      return await response.json();
     } catch (e) {
       console.error('Failed to fetch Vilimale queues', e);
       return [];
@@ -71,9 +73,11 @@ export const queueService = {
 
   getExternalDharumavanthaQueues: async (): Promise<Queue[]> => {
     try {
-      // Dharumavantha Hospital - part of Male' City Group
-      // May share API with IGMH or have separate endpoint
-      return [];
+      const response = await fetch('/api/dharumavantha/queues');
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status}`);
+      }
+      return await response.json();
     } catch (e) {
       console.error('Failed to fetch Dharumavantha queues', e);
       return [];
