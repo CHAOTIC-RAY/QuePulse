@@ -186,6 +186,11 @@
   background: rgba(16, 185, 129, 0.12);
 }
 
+.live-chip.live-chip-stale {
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.16);
+}
+
 .priority-chip {
   @apply inline-flex items-center gap-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full;
   color: #c2410c;

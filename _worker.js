@@ -395,6 +395,11 @@ async function scrapeASMH() {
   return queues;
 }
 
+const API_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate',
+  'Access-Control-Allow-Origin': '*',
+};
+
 const SCRAPERS = {
   '/api/hmh/queues': scrapeHMH,
   '/api/adk/queues': scrapeADK,
@@ -417,17 +422,13 @@ export default {
       if (scraper) {
         try {
           const queues = await scraper();
-          return Response.json(queues, {
-            headers: {
-              'Cache-Control': 'no-store, no-cache, must-revalidate',
-              'Access-Control-Allow-Origin': '*',
-            },
-          });
+          return Response.json(queues, { headers: API_HEADERS });
         } catch (error) {
-          return Response.json({ error: error.message, queues: [] }, { status: 502 });
+          const message = error instanceof Error ? error.message : 'Queue fetch failed';
+          return Response.json({ error: message }, { status: 502, headers: API_HEADERS });
         }
       }
-      return Response.json({ error: 'Not found' }, { status: 404 });
+      return Response.json({ error: 'Not found' }, { status: 404, headers: API_HEADERS });
     }
 
     const redirects = [

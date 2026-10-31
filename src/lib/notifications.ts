@@ -1,14 +1,14 @@
 import { LocalNotifications } from '@capacitor/local-notifications';
-import { UserTracking, SiteSource, Queue } from '../types';
+import { UserTracking, SiteSource } from '../types';
 import { apiUrl } from './apiBase';
 import { isNativeApp } from './platform';
-import { extractRoomLabel } from './queueDisplay';
-import { buildAlertBody } from './trackingStatus';
 import {
   startBackgroundTracking,
   stopBackgroundTracking,
   updateBackgroundTracking,
 } from './nativeTrackingService';
+
+export { checkTrackingAlert } from './trackingStatus';
 
 const ICON = '/icons/icon-192.png';
 const ANDROID_CHANNEL_ID = 'queue-alerts';
@@ -16,6 +16,7 @@ export const TRACKING_STATUS_NOTIFICATION_ID = 10001;
 export const TEST_NOTIFICATION_ID = 10099;
 let nativeChannelReady = false;
 let alwaysOnForegroundActive = false;
+let lastFallbackBody = '';
 
 export type NotificationState = 'unsupported' | 'default' | 'granted' | 'denied';
 
@@ -119,18 +120,39 @@ async function showNativeAlert(
 }
 
 /** Single ongoing notification via foreground service (always-on mode only). */
-export async function updateAlwaysOnNotification(title: string, body: string): Promise<void> {
+export async function updateAlwaysOnNotification(
+  title: string,
+  body: string,
+  tracking?: UserTracking | null
+): Promise<void> {
   if (!isNativeApp()) return;
 
   const state = await refreshNotificationState();
   if (state !== 'granted') return;
 
+  const options = {
+    title,
+    body,
+    pollUrl: tracking ? getHospitalApiUrl(tracking.source) : '',
+    token: tracking?.myToken ?? '',
+    queueId: tracking?.queueId ?? '',
+    isGlobal: !!tracking?.isGlobal,
+  };
+
   if (!alwaysOnForegroundActive) {
-    await startBackgroundTracking(title, body);
-    alwaysOnForegroundActive = true;
-  } else {
-    await updateBackgroundTracking(title, body);
+    const started = await startBackgroundTracking(options);
+    if (started) {
+      alwaysOnForegroundActive = true;
+      return;
+    }
+    if (lastFallbackBody !== body) {
+      lastFallbackBody = body;
+      await showServingChangeAlert(title, body);
+    }
+    return;
   }
+
+  await updateBackgroundTracking(options);
 }
 
 /** One-shot alert when the tracked room's serving number changes (always-on off). */
@@ -159,6 +181,7 @@ export async function showServingChangeAlert(title: string, body: string): Promi
 export async function clearTrackingNotification(): Promise<void> {
   if (!isNativeApp()) return;
   alwaysOnForegroundActive = false;
+  lastFallbackBody = '';
   try {
     await LocalNotifications.cancel({
       notifications: [{ id: TRACKING_STATUS_NOTIFICATION_ID }],
@@ -269,50 +292,6 @@ export function syncTrackingToServiceWorker(tracking: UserTracking | null) {
     type: 'SYNC_TRACKING',
     tracking,
   });
-}
-
-export function parseTokenNumber(value: string): number | null {
-  const digits = value.replace(/\D/g, '');
-  if (!digits) return null;
-  const n = parseInt(digits, 10);
-  return Number.isNaN(n) ? null : n;
-}
-
-export function checkTrackingAlert(
-  tracking: UserTracking,
-  queues: Queue[],
-  lastAlertId: string | null
-): { shouldAlert: boolean; alertId: string; title: string; body: string; queueName?: string } | null {
-  const target = parseTokenNumber(tracking.myToken);
-  if (target === null) return null;
-
-  const evaluate = (q: Queue) => {
-    const current = parseTokenNumber(q.currentNumber);
-    if (current === null) return null;
-    const diff = target - current;
-    if (diff < 0 || diff > tracking.notifyThreshold) return null;
-    const alertId = `${tracking.isGlobal ? 'global' : tracking.queueId}-${q.id}-${q.currentNumber}`;
-    if (alertId === lastAlertId) return null;
-    return {
-      shouldAlert: true,
-      alertId,
-      title: tracking.isGlobal ? `Token near — ${extractRoomLabel(q)}` : 'Your turn is near!',
-      body: buildAlertBody(tracking, q),
-      queueName: q.name,
-    };
-  };
-
-  if (tracking.isGlobal) {
-    for (const q of queues) {
-      const hit = evaluate(q);
-      if (hit) return hit;
-    }
-    return null;
-  }
-
-  const matched = queues.find((q) => q.id === tracking.queueId);
-  if (!matched) return null;
-  return evaluate(matched);
 }
 
 const HOSPITAL_API_PATHS: Record<SiteSource, string> = {

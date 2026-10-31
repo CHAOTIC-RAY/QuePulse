@@ -396,6 +396,11 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  app.use('/api', (_req, res, next) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    next();
+  });
+
   app.get('/api/hmh/queues', async (_req, res) => {
     try {
       res.json(await scrapeHMH());

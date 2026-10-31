@@ -61,8 +61,8 @@ export function MobileDashboard({
     [tracking?.queueId]
   );
 
-  const { queues: trackingQueues } = useQueuePolling(tracking?.source ?? null);
-  const { queues: featuredQueues, loading: featuredLoading } = useQueuePolling(featuredId, 12_000);
+  const { queues: trackingQueues, error: trackingError } = useQueuePolling(tracking?.source ?? null);
+  const { queues: featuredQueues, loading: featuredLoading, error: featuredError } = useQueuePolling(featuredId, 12_000);
 
   const servingQueue = useMemo(() => {
     if (!tracking) return null;
@@ -129,9 +129,9 @@ export function MobileDashboard({
           <div className="dash-section-header flex items-center justify-between gap-3">
             <p className="dash-section-label">Continue where you left off</p>
             {featured.live && (
-              <span className="live-chip shrink-0">
+              <span className={`live-chip shrink-0 ${featuredError ? 'live-chip-stale' : ''}`}>
                 <Radio className="w-2.5 h-2.5" />
-                Live
+                {featuredError ? 'Stale' : 'Live'}
               </span>
             )}
           </div>
@@ -226,9 +226,9 @@ export function MobileDashboard({
           >
             <div className="dash-stack">
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+                <span className={`w-2 h-2 rounded-full ${trackingError ? 'bg-amber-300' : 'bg-emerald-300 animate-pulse'}`} />
                 <span className="text-[11px] font-bold uppercase tracking-widest opacity-85">
-                  Tracking now
+                  {trackingError ? 'Last update failed' : 'Tracking now'}
                 </span>
               </div>
               <div className="flex items-center gap-4">

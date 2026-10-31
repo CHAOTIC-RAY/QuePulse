@@ -10,7 +10,7 @@ interface LiveTrackingBannerProps {
 }
 
 export function LiveTrackingBanner({ tracking }: LiveTrackingBannerProps) {
-  const { queues: rawQueues, loading } = useQueuePolling(tracking.source, 8_000);
+  const { queues: rawQueues, loading, error } = useQueuePolling(tracking.source, 8_000);
 
   const { queue, patientsLeft, etaText } = useMemo(() => {
     const keepIds = tracking.queueId ? [tracking.queueId] : undefined;
@@ -52,7 +52,15 @@ export function LiveTrackingBanner({ tracking }: LiveTrackingBannerProps) {
     );
   }
 
-  if (!queue) return null;
+  if (!queue) {
+    if (!error) return null;
+    return (
+      <div className="mb-8 p-4 rounded-3xl border border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300">
+        <p className="text-xs font-black uppercase tracking-widest">Live status unavailable</p>
+        <p className="text-sm font-medium mt-1">{error}</p>
+      </div>
+    );
+  }
 
   return (
     <motion.div 
@@ -72,8 +80,10 @@ export function LiveTrackingBanner({ tracking }: LiveTrackingBannerProps) {
            </div>
            <div>
              <div className="flex items-center gap-2 mb-1">
-               <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-               <span className="text-[10px] font-black uppercase tracking-widest text-emerald-300">Live Status • {tracking.source.toUpperCase()}</span>
+               <span className={`w-2 h-2 rounded-full ${error ? 'bg-amber-300' : 'bg-emerald-400 animate-pulse'}`} />
+               <span className={`text-[10px] font-black uppercase tracking-widest ${error ? 'text-amber-200' : 'text-emerald-300'}`}>
+                 {error ? 'Last update failed' : 'Live Status'} • {tracking.source.toUpperCase()}
+               </span>
              </div>
              <h3 className="text-2xl md:text-3xl font-black uppercase tracking-tighter leading-none mb-1">{queue.name}</h3>
              <p className="text-xs font-bold uppercase tracking-widest opacity-80">
