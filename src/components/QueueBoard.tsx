@@ -26,7 +26,7 @@ interface QueueBoardProps {
 
 export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: QueueBoardProps) {
   const hospital = HOSPITAL_MAP[source];
-  const { queues: rawQueues, loading, error, refresh } = useQueuePolling(source);
+  const { queues: rawQueues, loading, refreshing, error, refresh } = useQueuePolling(source);
   const [queues, setQueues] = useState<Queue[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [category, setCategory] = useState<QueueCategory>('All');
@@ -151,20 +151,22 @@ export function QueueBoard({ source, tracking, onUpdateTracking, onBack }: Queue
           <img src={hospital.logo} alt="" className="w-12 h-12 rounded-2xl shrink-0" />
           <div className="min-w-0">
             <div className="flex items-center gap-2 mb-0.5">
-              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">Live</span>
+              <span className={`w-2 h-2 rounded-full ${error ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`} />
+              <span className={`text-[10px] font-bold uppercase tracking-widest ${error ? 'text-amber-600' : 'text-emerald-600'}`}>
+                {error ? 'Stale' : 'Live'}
+              </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black tracking-tight truncate">{hospital.name}</h2>
             <p className="text-xs text-[var(--muted)]">{hospital.location}</p>
           </div>
         </div>
         <button
-          onClick={() => void refresh()}
+          onClick={() => void refresh(true)}
           className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border border-[var(--border)]"
           style={{ background: 'var(--surface)' }}
           aria-label="Refresh"
         >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-4 h-4 ${loading || refreshing ? 'animate-spin' : ''}`} />
         </button>
       </motion.div>
 

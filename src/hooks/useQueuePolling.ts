@@ -9,36 +9,52 @@ const DEFAULT_INTERVAL_MS = 8_000;
 export function useQueuePolling(source: SiteSource | null, intervalMs = DEFAULT_INTERVAL_MS) {
   const [queues, setQueues] = useState<Queue[]>([]);
   const [loading, setLoading] = useState(!!source);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const seqRef = useRef(0);
+  const hasDataRef = useRef(false);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (manual = false) => {
     if (!source) return;
 
     const seq = ++seqRef.current;
-    setError(null);
+    if (manual) setRefreshing(true);
 
     try {
       const data = await queueService.getQueuesForSource(source);
       if (seq !== seqRef.current) return;
+      hasDataRef.current = data.length > 0;
       setQueues(data);
+      setError(null);
     } catch (e) {
       if (seq !== seqRef.current) return;
       console.error('Queue fetch error', e);
-      setError('Could not load live queues. Pull to refresh or try again.');
+      setError(
+        hasDataRef.current
+          ? 'Live update failed. Showing the last queue data.'
+          : 'Could not load live queues. Pull to refresh or try again.'
+      );
     } finally {
-      if (seq === seqRef.current) setLoading(false);
+      if (seq === seqRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [source]);
 
   useEffect(() => {
     if (!source) {
+      hasDataRef.current = false;
       setQueues([]);
       setLoading(false);
+      setRefreshing(false);
       setError(null);
       return;
     }
 
+    hasDataRef.current = false;
+    setQueues([]);
+    setError(null);
     setLoading(true);
     seqRef.current += 1;
 
@@ -71,5 +87,5 @@ export function useQueuePolling(source: SiteSource | null, intervalMs = DEFAULT_
     };
   }, [source, intervalMs, refresh]);
 
-  return { queues, loading, error, refresh };
+  return { queues, loading, refreshing, error, refresh };
 }

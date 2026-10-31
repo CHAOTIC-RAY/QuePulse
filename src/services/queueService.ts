@@ -5,19 +5,37 @@
 
 import { Queue, SiteSource } from '../types';
 import { apiUrl } from '../lib/apiBase';
-import { isNativeApp } from '../lib/platform';
+
+/** Accept a queue payload only when the HTTP call succeeded. */
+export function queuesFromResponse(ok: boolean, status: number, data: unknown): Queue[] {
+  if (!ok) {
+    const message =
+      data &&
+      typeof data === 'object' &&
+      'error' in data &&
+      typeof (data as { error: unknown }).error === 'string'
+        ? (data as { error: string }).error
+        : `Request failed: ${status}`;
+    throw new Error(message);
+  }
+  if (Array.isArray(data)) return data as Queue[];
+  if (data && typeof data === 'object' && Array.isArray((data as { queues?: unknown }).queues)) {
+    return (data as { queues: Queue[] }).queues;
+  }
+  return [];
+}
 
 async function fetchQueues(path: string): Promise<Queue[]> {
   const base = apiUrl(path);
-  const url = isNativeApp()
-    ? `${base}${base.includes('?') ? '&' : '?'}_=${Date.now()}`
-    : base;
+  const url = `${base}${base.includes('?') ? '&' : '?'}_=${Date.now()}`;
   const response = await fetch(url, { cache: 'no-store' });
-  const data = await response.json();
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.queues)) return data.queues;
-  if (!response.ok) throw new Error(data?.error || `Request failed: ${response.status}`);
-  return [];
+  let data: unknown = null;
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error(response.ok ? 'Queue response was not valid JSON' : `Request failed: ${response.status}`);
+  }
+  return queuesFromResponse(response.ok, response.status, data);
 }
 
 export const queueService = {

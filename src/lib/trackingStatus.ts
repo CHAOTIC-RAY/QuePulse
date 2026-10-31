@@ -46,7 +46,9 @@ export function buildTrackingStatus(tracking: UserTracking, queue: Queue): Track
   const title = `QuePulse · Token ${tracking.myToken}`;
   let body: string;
 
-  if (tokensLeft === 0) {
+  if (target !== null && current !== null && current > target) {
+    body = `Now serving ${queue.currentNumber} · ${room}. Token ${tracking.myToken} has been reached.`;
+  } else if (tokensLeft === 0) {
     body = `Your turn! Now serving ${queue.currentNumber} · ${room}`;
   } else if (tokensLeft !== null) {
     const ahead = tokensLeft === 1 ? '1 ahead' : `${tokensLeft} ahead`;
@@ -71,4 +73,59 @@ export function buildAlertBody(tracking: UserTracking, queue: Queue): string {
 
 export function getServingKey(queue: Queue): string {
   return `${queue.id}:${queue.currentNumber}`;
+}
+
+export type TrackingAlert = {
+  shouldAlert: boolean;
+  alertId: string;
+  title: string;
+  body: string;
+  queueName?: string;
+};
+
+/** Alert when the token is within the threshold, or once if a specific queue jumps past it. */
+export function checkTrackingAlert(
+  tracking: UserTracking,
+  queues: Queue[],
+  lastAlertId: string | null
+): TrackingAlert | null {
+  const target = parseTokenNumber(tracking.myToken);
+  if (target === null) return null;
+
+  const evaluate = (q: Queue): TrackingAlert | null => {
+    const current = parseTokenNumber(q.currentNumber);
+    if (current === null) return null;
+    const diff = target - current;
+    const passed = diff < 0;
+    if (passed && tracking.isGlobal) return null;
+    if (!passed && diff > tracking.notifyThreshold) return null;
+
+    const scope = tracking.isGlobal ? 'global' : tracking.queueId;
+    const alertId = passed ? `${scope}-${q.id}-passed` : `${scope}-${q.id}-${q.currentNumber}`;
+    if (alertId === lastAlertId) return null;
+
+    return {
+      shouldAlert: true,
+      alertId,
+      title: passed
+        ? 'Your token was called'
+        : tracking.isGlobal
+          ? `Token near — ${extractRoomLabel(q)}`
+          : 'Your turn is near!',
+      body: buildAlertBody(tracking, q),
+      queueName: q.name,
+    };
+  };
+
+  if (tracking.isGlobal) {
+    for (const q of queues) {
+      const hit = evaluate(q);
+      if (hit) return hit;
+    }
+    return null;
+  }
+
+  const matched = queues.find((q) => q.id === tracking.queueId);
+  if (!matched) return null;
+  return evaluate(matched);
 }

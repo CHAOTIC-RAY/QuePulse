@@ -17,11 +17,9 @@ const POLL_MS = 5_000;
 /** Poll queues and drive a single notification strategy on native. */
 export function useTrackingAlerts(tracking: UserTracking | null) {
   const lastServingRef = useRef<string | null>(null);
-  const alwaysOnRef = useRef(false);
 
   useEffect(() => {
     lastServingRef.current = null;
-    alwaysOnRef.current = !!tracking?.alwaysOnNotifications;
   }, [tracking?.source, tracking?.queueId, tracking?.myToken, tracking?.alwaysOnNotifications]);
 
   useEffect(() => {
@@ -51,7 +49,7 @@ export function useTrackingAlerts(tracking: UserTracking | null) {
         const alwaysOn = !!tracking.alwaysOnNotifications;
 
         if (alwaysOn) {
-          await updateAlwaysOnNotification(status.title, status.body);
+          await updateAlwaysOnNotification(status.title, status.body, tracking);
         } else {
           if (lastServingRef.current !== null && lastServingRef.current !== servingKey) {
             await showServingChangeAlert(status.title, status.body);
@@ -81,8 +79,7 @@ export function useTrackingAlerts(tracking: UserTracking | null) {
 
     startPolling();
     const listener = App.addListener('appStateChange', ({ isActive }) => {
-      if (isActive) startPolling();
-      else if (!alwaysOnRef.current) stopPolling();
+      if (isActive) void poll();
     });
 
     return () => {

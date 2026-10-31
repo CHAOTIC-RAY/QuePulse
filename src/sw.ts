@@ -1,6 +1,8 @@
 /// <reference lib="webworker" />
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 import { apiUrl } from './lib/apiBase';
+import { checkTrackingAlert } from './lib/trackingStatus';
+import type { Queue, UserTracking } from './types';
 
 declare let self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: Array<string | { url: string; revision: string | null }>;
@@ -34,25 +36,9 @@ let tracking: TrackingPayload | null = null;
 let lastAlertId: string | null = null;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-function parseToken(value: string): number | null {
-  const digits = value.replace(/\D/g, '');
-  if (!digits) return null;
-  const n = parseInt(digits, 10);
-  return Number.isNaN(n) ? null : n;
-}
-
-function buildAlertBody(myToken: string, q: { id: string; currentNumber: string; counterInfo: string; name: string }): string {
-  const target = parseToken(myToken);
-  const current = parseToken(q.currentNumber);
-  const roomMatch = q.counterInfo.match(/Room\s+([A-Za-z0-9]+)/i) || q.name.match(/ROOM\s+([A-Za-z0-9]+)/i);
-  const room = roomMatch ? `Room ${roomMatch[1]}` : q.name;
-  const tokensLeft = target !== null && current !== null ? Math.max(0, target - current) : null;
-  if (tokensLeft === 0) return `Your turn! Now serving ${q.currentNumber} · ${room}`;
-  if (tokensLeft !== null) {
-    const ahead = tokensLeft === 1 ? '1 ahead' : `${tokensLeft} ahead`;
-    return `Now ${q.currentNumber} · ${room} · ${ahead}`;
-  }
-  return `Now serving ${q.currentNumber} · ${room}. Your token: ${myToken}.`;
+function trackingKey(value: TrackingPayload | null): string {
+  if (!value) return '';
+  return [value.source, value.queueId || '', value.isGlobal ? '1' : '0', value.myToken, String(value.notifyThreshold)].join('|');
 }
 
 async function pollQueues() {
@@ -61,47 +47,32 @@ async function pollQueues() {
   if (!path) return;
 
   try {
-    const res = await fetch(apiUrl(path), { cache: 'no-store' });
-    const queues = await res.json();
-    if (!Array.isArray(queues)) return;
+    const res = await fetch(`${apiUrl(path)}?_=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) return;
+    const data: unknown = await res.json();
+    const queues: Queue[] | null = Array.isArray(data)
+      ? data
+      : data && typeof data === 'object' && Array.isArray((data as { queues?: unknown }).queues)
+        ? (data as { queues: Queue[] }).queues
+        : null;
+    if (!queues) return;
 
-    const target = parseToken(tracking.myToken);
-    if (target === null) return;
+    const hit = checkTrackingAlert(tracking as UserTracking, queues, lastAlertId);
+    if (!hit) return;
+    lastAlertId = hit.alertId;
 
-    for (const q of queues) {
-      if (!tracking.isGlobal && q.id !== tracking.queueId) continue;
-      const current = parseToken(q.currentNumber);
-      if (current === null) continue;
-      const diff = target - current;
-      if (diff < 0 || diff > tracking.notifyThreshold) continue;
-
-      const alertId = `${tracking.isGlobal ? 'global' : tracking.queueId}-${q.id}-${q.currentNumber}`;
-      if (alertId === lastAlertId) continue;
-      lastAlertId = alertId;
-
-      await self.registration.showNotification(
-        tracking.isGlobal ? `Token near — ${q.name}` : 'Your turn is near!',
-        {
-          body: buildAlertBody(tracking.myToken, q),
-          icon: '/icons/icon-192.png',
-          badge: '/icons/icon-192.png',
-          tag: alertId,
-          renotify: true,
-          requireInteraction: true,
-          data: { url: `/?hospital=${tracking.source}` },
-        } as NotificationOptions
-      );
-      if (!tracking.isGlobal) break;
-    }
+    await self.registration.showNotification(hit.title, {
+      body: hit.body,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      tag: hit.alertId,
+      renotify: true,
+      requireInteraction: true,
+      data: { url: `/?hospital=${tracking.source}` },
+    } as NotificationOptions);
   } catch {
     // retry on next interval
   }
-}
-
-function startPolling() {
-  stopPolling();
-  pollTimer = setInterval(pollQueues, 5000);
-  pollQueues();
 }
 
 function stopPolling() {
@@ -112,11 +83,18 @@ function stopPolling() {
 
 self.addEventListener('message', (event) => {
   const data = event.data;
-  if (data?.type === 'SYNC_TRACKING') {
-    tracking = data.tracking;
-    if (tracking) startPolling();
-    else stopPolling();
+  if (data?.type !== 'SYNC_TRACKING') return;
+
+  const next = (data.tracking ?? null) as TrackingPayload | null;
+  const same = trackingKey(tracking) === trackingKey(next);
+  tracking = next;
+  if (!tracking) {
+    stopPolling();
+    return;
   }
+  if (!same) lastAlertId = null;
+  if (!pollTimer) pollTimer = setInterval(() => void pollQueues(), 5000);
+  void pollQueues();
 });
 
 self.addEventListener('notificationclick', (event) => {
